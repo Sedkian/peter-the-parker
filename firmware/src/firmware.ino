@@ -113,6 +113,7 @@ uint8_t serialRead;
 uint8_t buffer[52];
 uint8_t bufferBt1[52];
 uint8_t bufferBt2[52];
+unsigned char tableBt[128] = {0};
 double  lastTime = 0.0;
 double  currentTime = 0.0;
 double  CompAngleY, CompAngleX, GyroXangle;
@@ -1051,8 +1052,6 @@ void sendByte(uint8_t c)
 void sendString(String s)
 {
   int16_t l = s.length();
-  writeSerial(4);
-  writeSerial(l);
   for(int16_t i=0;i<l;i++)
   {
     writeSerial(s.charAt(i));
@@ -2745,15 +2744,13 @@ void setup()
   while(!Serial2){}
   while(!Serial3){}
   delay(5);
-  for(int i=0; i<4; i++)
-  {
-    encoders[i]->reset(i+1);
-  }
+
+  encoders[0]->reset(SLOT1);
+  encoders[1]->reset(SLOT2);
   attachInterrupt(encoders[0]->getIntNum(), isr_process_encoder1, RISING);
   attachInterrupt(encoders[1]->getIntNum(), isr_process_encoder2, RISING);
-  attachInterrupt(encoders[2]->getIntNum(), isr_process_encoder3, RISING);
-  attachInterrupt(encoders[3]->getIntNum(), isr_process_encoder4, RISING);
   delay(5);
+
   gyro_ext.begin();
   delay(5);
   pinMode(13,OUTPUT);
@@ -2768,7 +2765,7 @@ void setup()
   TCCR4A = _BV(WGM40);
   TCCR4B = _BV(CS41) | _BV(CS40) | _BV(WGM42);
 
-  for(int i=0; i<4; i++)
+  for(int i=0; i<2; i++)
   {
     encoders[i]->setPulse(8);
     encoders[i]->setRatio(46.67);
@@ -2785,13 +2782,13 @@ void setup()
   PID_angle.D = 0.2;         // 0.2;
   PID_speed.P = 0.06;        // 0.06
   PID_speed.I = 0.005;       // 0.005
+
   readEEPROM();
   //megapi_mode = BALANCED_MODE;
-  Serial.print("Version: ");
-  Serial.println(mVersion);
+  sendString("Version: ");
+  sendString(mVersion);
   update_sensor = lasttime_speed = lasttime_angle = millis();
   blink_time = millis();
-  BluetoothSource = DATA_SERIAL;
 }
 
 /**
@@ -2810,6 +2807,7 @@ void setup()
  */
 void loop()
 {
+  sendString("Starting Loop!\r\n");
   currentTime = millis()/1000.0-lastTime;
   keyPressed = buttonSensor.pressed();
 
@@ -2837,48 +2835,7 @@ void loop()
   //    }
   //  }
 
-  readSerial();
-  while(isAvailable)
-  {
-    unsigned char c = serialRead & 0xff;
-    if((c == 0x55) && (isStart == false))
-    {
-      if(prevc == 0xff)
-      {
-        index=1;
-        isStart = true;
-      }
-    }
-    else
-    {
-      prevc = c;
-      if(isStart)
-      {
-        if(index == 2)
-        {
-          dataLen = c; 
-        }
-        else if(index > 2)
-        {
-          dataLen--;
-        }
-        writeBuffer(index,c);
-      }
-    }
-    index++;
-    if(index > 51)
-    {
-      index=0; 
-      isStart=false;
-    }
-    if(isStart && (dataLen == 0) && (index > 3))
-    { 
-      isStart = false;
-      parseData(); 
-      index=0;
-    }
-    readSerial();
-  }
+  read_serial();
 
   if(Compass.getPort() != 0)
   {
@@ -2937,9 +2894,6 @@ void loop()
   {
     Stop();
   }
-  else
-  {
-    Forward();
-  }
+
   delay(1000);
 }
