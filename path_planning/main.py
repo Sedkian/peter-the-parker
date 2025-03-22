@@ -1,4 +1,5 @@
 import heapq
+from random import randint
 
 def heuristic(a, b):
     """Calculate the Manhattan distance between two points."""
@@ -55,13 +56,12 @@ def a_star(grid, start, goal):
     return None
 
 def visualize_grid(grid, path):
-    for i in range(len(grid) + 3):
+    for i in range(len(grid[0])+1):
         if i == 0:
             print("+", end="")
-        elif i == len(grid)+2:
-            print("-+", end="")
         else:
             print("--", end="")
+    print("-+", end="")
     print()
 
     if path == None:
@@ -73,8 +73,7 @@ def visualize_grid(grid, path):
                     print("X", end=" ")  # Obstacle
                 else:
                     print(".", end=" ")  # Empty space
-                if j == len(grid):
-                    print("|", end=" ")
+            print("|", end=" ")
             print()
 
     else:
@@ -88,20 +87,20 @@ def visualize_grid(grid, path):
                     print("X", end=" ")  # Obstacle
                 else:
                     print(".", end=" ")  # Empty space
-                if j == len(grid):
-                    print("|", end=" ")
+            print("|", end=" ")
             print()
 
-    for i in range(len(grid) + 3):
+    for i in range(len(grid[0])+1):
         if i == 0:
             print("+", end="")
-        elif i == len(grid)+2:
-            print("-+", end="")
         else:
             print("--", end="")
+    print("-+", end="")
     print()
 
 def calcuate_moves(path):
+    if path is None:
+        return None 
     movements = []
     curr = "east"
     length = 0
@@ -120,8 +119,6 @@ def calcuate_moves(path):
                 d = "north"
             case [-1,0]:
                 d = "south"
-        #print("Current Block: {0}  Next Block: {1} ".format(curr_block,next_block))
-        #print("H: {0}, V: {1} [2]".format(H,V,d))
         if(curr != d):
             #For rotations: 
             # CounterClockWise 90 = -1
@@ -161,8 +158,7 @@ def calcuate_moves(path):
             length = 1
         else:
             length += 1
-    print("Last line:")
-    print("Travel line of length {0} from Blocks {1}-{2}".format(length, start_block,curr_block))
+    print("Last line:\nTravel line of length {0} from Blocks {1}-{2}".format(length, start_block,curr_block))
     movements.append([0, length]) #transitional movement
         
     return movements
@@ -178,6 +174,8 @@ grid = [
     [1, 0, 1, 1, 0, 1],
     [0, 0, 0, 0, 0, 1],
 ]
+s = (4, 0)  #(row, column)
+g = (0, 5) 
 
 grid2 = [
     [1, 0, 0, 0, 0, 1],
@@ -199,14 +197,23 @@ grid3 = [
 s3 = (4,0)
 g3 = (4,4)
 
-# Define start and goal positions
-s = (4, 0)  # (row, column)
-g = (0, 5)   # (row, column)
+grid4 = []
+r = 100 
+c = 100
+for i in range(r):
+    arr = []
+    for j in range(c):
+        arr.append(randint(0,1))
+    grid4.append(arr)
+s4 = (randint(0,r-1), randint(0,c-1))
+g4 = (randint(0,r-1), randint(0,c-1))
+
+grid4[s4[0]][s4[1]] = 0
+grid4[g4[0]][g4[1]] = 0
+
 
 # Find the path
-#path = a_star(grid, start, goal)
-#path = a_star(grid2, s2, g2)
-path = a_star(grid3, s3, g3)
+path = a_star(grid4, s4, g4)
 
 if path:
     print("Path found:", path)
@@ -214,8 +221,8 @@ else:
     print("No path found.")
 
 # Visualize the grid with the path
-visualize_grid(grid3, None)
-visualize_grid(grid3, path)
+visualize_grid(grid4, None)
+visualize_grid(grid4, path)
 
 m = calcuate_moves(path)
 print(m)
