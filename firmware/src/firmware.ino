@@ -1,34 +1,3 @@
-/*************************************************************************
-* File Name          : Firmware_for_MegaPi.ino
-* Author             : myan
-* Updated            : myan
-* Version            : V0e.01.017
-* Date               : 03/19/2020
-* Description        : Firmware for Makeblock Electronic modules with Scratch.  
-* License            : CC-BY-SA 3.0
-* Copyright (C) 2013 - 2016 Maker Works Technology Co., Ltd. All right reserved.
-* http://www.makeblock.cc/
-* History:
-* <Author>         <Time>         <Version>        <Descr>
-* Mark Yan         2016/03/12     0e.01.001        build the new.
-* Mark Yan         2016/05/04     0e.01.002        Added encoder and compass driver and fix some bugs.
-* Mark Yan         2016/05/07     0e.01.003        Delete watchdog and add On board stepper driver.
-* Mark Yan         2016/05/24     0e.01.004        Fix issue MBLOCK-1 and MBLOCK-12(JIRA issue).
-* Mark Yan         2016/06/07     0e.01.005        Fix encoder speed issue.
-* Mark Yan         2016/06/22     0e.01.006        Fix issue MAK-187 (bluetooth fatal error from MBLOCK-12)
-* Mark Yan         2016/06/25     0e.01.007        Fix issue MBLOCK-38(limit switch return value).
-* Mark Yan         2016/07/06     0e.01.008        Fix issue MBLOCK-61(ultrasonic distance limitations bug).
-* Mark Yan         2016/07/27     0e.01.009        Add position parameters for encoder motor,fix issue MBLOCK-77.
-* Mark Yan         2016/08/01     0e.01.010        Fix issue MBLOCK-109 MBLOCK-110(encoder motor exception handling negative).
-* Mark Yan         2016/08/10     0e.01.011        Fix issue MBLOCK-126(on board encoder motor speed symbol).
-* Mark Yan         2016/08/24     0e.01.012        Fix issue MBLOCK-171(Stepper online execution slow), MBLOCK-189(on board encoder motor reset issue).
-* Mark Yan         2017/03/01     0e.01.013        fix RGB lights issue.
-* Mark Yan         2017/06/21     0e.01.014        fix JIRA issue 668 710.
-* Mark Yan         2018/01/03     0e.01.015        add the absolute motor move for encode motor & add new stepper command.
-* payton           2018/07/30     0e.01.016        The "megapi_mode" is no longer saved when the power is broken. Default is "BLUETOOTH_MODE"
-* Payton           2020/03/19     0e.01.017        Support raspberry pi python lib.
-* Payton           2020/04/01     0e.01.018        Repair encoder motor bug.
-**************************************************************************/
 #include <Arduino.h>
 #include <MeMegaPi.h>
 #include "MeEEPROM.h"
@@ -42,12 +11,12 @@ Servo servos[12];
 MeMegaPiDCMotor dc;
 MeTemperature ts;
 MeRGBLed led;
-MeUltrasonicSensor *us = NULL;     //PORT_7
+MeUltrasonicSensor ultrasonic_sensor(PORT6);     //PORT_7
 Me7SegmentDisplay seg;
 MePort generalDevice;
 MeLEDMatrix ledMx;
 MeInfraredReceiver *ir = NULL;     //PORT_6
-MeGyro gyro_ext(0,0x68);           //external gryo sensor
+MeGyro gyro_ext(PORT7,0x68);           //external gryo sensor
 MeCompass Compass;
 MeJoystick joystick;
 MeStepperOnBoard steppers[4] = {MeStepperOnBoard(1),MeStepperOnBoard(2),MeStepperOnBoard(3),MeStepperOnBoard(4)};
@@ -57,7 +26,7 @@ MeFlameSensor FlameSensor;
 MeGasSensor GasSensor;
 MeTouchSensor touchSensor;
 Me4Button buttonSensor;
-MeEncoderOnBoard encoders[4];
+MeEncoderOnBoard* encoders[4] = {new MeEncoderOnBoard(SLOT1), new MeEncoderOnBoard(SLOT2), new MeEncoderOnBoard(SLOT3), new MeEncoderOnBoard(SLOT4)};
 MeLineFollower line(PORT_8);
 MeColorSensor *colorsensor  = NULL;
 
@@ -144,6 +113,7 @@ uint8_t serialRead;
 uint8_t buffer[52];
 uint8_t bufferBt1[52];
 uint8_t bufferBt2[52];
+unsigned char tableBt[128] = {0};
 double  lastTime = 0.0;
 double  currentTime = 0.0;
 double  CompAngleY, CompAngleX, GyroXangle;
@@ -323,13 +293,13 @@ void stepper_move_finish_callback(int slot,int extId)
  */
 void isr_process_encoder1(void)
 {
-  if(digitalRead(encoders[0].getPortB()) == 0)
+  if(digitalRead(encoders[0]->getPortB()) == 0)
   {
-    encoders[0].pulsePosMinus();
+    encoders[0]->pulsePosMinus();
   }
   else
   {
-    encoders[0].pulsePosPlus();;
+    encoders[0]->pulsePosPlus();;
   }
 }
 
@@ -350,13 +320,13 @@ void isr_process_encoder1(void)
  */
 void isr_process_encoder2(void)
 {
-  if(digitalRead(encoders[1].getPortB()) == 0)
+  if(digitalRead(encoders[1]->getPortB()) == 0)
   {
-    encoders[1].pulsePosMinus();
+    encoders[1]->pulsePosMinus();
   }
   else
   {
-    encoders[1].pulsePosPlus();
+    encoders[1]->pulsePosPlus();
   }
 }
 
@@ -377,13 +347,13 @@ void isr_process_encoder2(void)
  */
 void isr_process_encoder3(void)
 {
-  if(digitalRead(encoders[2].getPortB()) == 0)
+  if(digitalRead(encoders[2]->getPortB()) == 0)
   {
-    encoders[2].pulsePosMinus();
+    encoders[2]->pulsePosMinus();
   }
   else
   {
-    encoders[2].pulsePosPlus();
+    encoders[2]->pulsePosPlus();
   }
 }
 
@@ -404,13 +374,13 @@ void isr_process_encoder3(void)
  */
 void isr_process_encoder4(void)
 {
-  if(digitalRead(encoders[3].getPortB()) == 0)
+  if(digitalRead(encoders[3]->getPortB()) == 0)
   {
-    encoders[3].pulsePosMinus();
+    encoders[3]->pulsePosMinus();
   }
   else
   {
-    encoders[3].pulsePosPlus();
+    encoders[3]->pulsePosPlus();
   }
 }
 
@@ -576,8 +546,8 @@ void readEEPROM(void)
  */
 void Forward(void)
 {
-  encoders[0].setMotorPwm(moveSpeed);
-  encoders[1].setMotorPwm(-moveSpeed);
+  encoders[0]->setMotorPwm(-moveSpeed);
+  encoders[1]->setMotorPwm(moveSpeed);
 }
 
 /**
@@ -596,8 +566,8 @@ void Forward(void)
  */
 void Backward(void)
 {
-  encoders[0].setMotorPwm(-moveSpeed);
-  encoders[1].setMotorPwm(moveSpeed);
+  encoders[0]->setMotorPwm(moveSpeed);
+  encoders[1]->setMotorPwm(-moveSpeed);
 }
 
 /**
@@ -616,8 +586,8 @@ void Backward(void)
  */
 void BackwardAndTurnLeft(void)
 {
-  encoders[0].setMotorPwm(-moveSpeed/4);
-  encoders[1].setMotorPwm(moveSpeed);
+  encoders[0]->setMotorPwm(-moveSpeed/4);
+  encoders[1]->setMotorPwm(moveSpeed);
 }
 
 /**
@@ -636,8 +606,8 @@ void BackwardAndTurnLeft(void)
  */
 void BackwardAndTurnRight(void)
 {
-  encoders[0].setMotorPwm(-moveSpeed);
-  encoders[1].setMotorPwm(moveSpeed/4);
+  encoders[0]->setMotorPwm(-moveSpeed);
+  encoders[1]->setMotorPwm(moveSpeed/4);
 }
 
 /**
@@ -656,8 +626,81 @@ void BackwardAndTurnRight(void)
  */
 void TurnLeft(void)
 {
-  encoders[0].setMotorPwm(moveSpeed);
-  encoders[1].setMotorPwm(-moveSpeed/2);
+  encoders[0]->setMotorPwm(moveSpeed * 0.7);
+  encoders[1]->setMotorPwm(moveSpeed * 0.7);
+}
+
+double getAnglePlusDegrees(double angle, double degrees)
+{
+  double targetAngle = angle + degrees;
+  if(targetAngle > 180)
+  {
+    targetAngle -= 360;
+  }
+  else if(targetAngle < -180)
+  {
+    targetAngle += 360;
+  }
+  return targetAngle;
+}
+
+double getAverageOfNZAngles(int N)
+{
+  double angle = 0;
+  for(int i = 0; i < N; i++)
+  {
+    gyro_ext.update();
+    angle += gyro_ext.getAngleZ();
+  }
+  return angle / N;
+}
+
+void TurnLeft90(void)
+{
+  // Read 5 reading of the current z angle of the gyro and average them
+  double angle = gyro_ext.getAngleZ();
+  // Calculate the angle to turn to based on the current angle (-180, 180)
+  double targetAngle = getAnglePlusDegrees(angle, 90);
+
+  // Wait until the angle is reached or timeout
+  unsigned long startTime_ms = millis();
+  unsigned long timeout_ms = 5000;
+  int angleTolerance = 2;
+  while((abs(targetAngle - angle) > angleTolerance) && ((millis() - startTime_ms) < timeout_ms))
+  {
+    // Set the speed to turn at
+    TurnLeft();
+    updatePetersSensors();
+    angle = gyro_ext.getAngleZ();
+    delay(10);
+  }
+
+  // Stop the motors
+  Stop();
+}
+
+void TurnRight90(void)
+{
+  // Read 5 reading of the current z angle of the gyro and average them
+  double angle = gyro_ext.getAngleZ();
+  // Calculate the angle to turn to based on the current angle (-180, 180)
+  double targetAngle = getAnglePlusDegrees(angle, -90);
+
+  // Wait until the angle is reached or timeout
+  unsigned long startTime_ms = millis();
+  unsigned long timeout_ms = 5000;
+  int angleTolerance = 2;
+  while((abs(targetAngle - angle) > angleTolerance) && ((millis() - startTime_ms) < timeout_ms))
+  {
+    // Set the speed to turn at
+    TurnRight();
+    updatePetersSensors();
+    angle = gyro_ext.getAngleZ();
+    delay(10);
+  }
+
+  // Stop the motors
+  Stop();
 }
 
 /**
@@ -676,8 +719,8 @@ void TurnLeft(void)
  */
 void TurnRight(void)
 {
-  encoders[0].setMotorPwm(moveSpeed/2);
-  encoders[1].setMotorPwm(-moveSpeed);
+  encoders[0]->setMotorPwm(-moveSpeed * 0.7);
+  encoders[1]->setMotorPwm(-moveSpeed * 0.7);
 }
 
 /**
@@ -696,8 +739,8 @@ void TurnRight(void)
  */
 void TurnLeft1(void)
 {
-  encoders[0].setMotorPwm(moveSpeed);
-  encoders[1].setMotorPwm(moveSpeed);
+  encoders[0]->setMotorPwm(moveSpeed);
+  encoders[1]->setMotorPwm(moveSpeed);
 }
 
 /**
@@ -716,8 +759,8 @@ void TurnLeft1(void)
  */
 void TurnRight1(void)
 {
-  encoders[0].setMotorPwm(-moveSpeed);
-  encoders[1].setMotorPwm(-moveSpeed);
+  encoders[0]->setMotorPwm(-moveSpeed);
+  encoders[1]->setMotorPwm(-moveSpeed);
 }
 
 /**
@@ -736,8 +779,8 @@ void TurnRight1(void)
  */
 void Stop(void)
 {
-  encoders[0].setMotorPwm(0);
-  encoders[1].setMotorPwm(0);
+  encoders[0]->setMotorPwm(0);
+  encoders[1]->setMotorPwm(0);
 }
 
 /**
@@ -983,10 +1026,10 @@ void parseData(void)
         /* reset On-Board encoder driver */
         for(int i=0;i<4;i++)
         {
-          encoders[i].setPulsePos(0);
-          encoders[i].moveTo(0,10);
-          encoders[i].setMotorPwm(0);
-          encoders[i].setMotionMode(DIRECT_MODE);
+          encoders[i]->setPulsePos(0);
+          encoders[i]->moveTo(0,10);
+          encoders[i]->setMotorPwm(0);
+          encoders[i]->setMotionMode(DIRECT_MODE);
           steppers[i].setCurrentPosition(0);
           steppers[i].moveTo(0);
           steppers[i].disableOutputs();
@@ -1082,8 +1125,6 @@ void sendByte(uint8_t c)
 void sendString(String s)
 {
   int16_t l = s.length();
-  writeSerial(4);
-  writeSerial(l);
   for(int16_t i=0;i<l;i++)
   {
     writeSerial(s.charAt(i));
@@ -1369,15 +1410,15 @@ void runModule(uint8_t device)
         uint8_t slot = readBuffer(7);
         int16_t speed_value = readShort(8);
         speed_value = -speed_value;
-        encoders[slot-1].setTarPWM(speed_value);
+        encoders[slot-1]->setTarPWM(speed_value);
       }
       break;
     case JOYSTICK:
       {
         int16_t leftSpeed = readShort(6);
-        encoders[0].setTarPWM(-leftSpeed);
+        encoders[0]->setTarPWM(-leftSpeed);
         int16_t rightSpeed = readShort(8);
-        encoders[1].setTarPWM(-rightSpeed);
+        encoders[1]->setTarPWM(-rightSpeed);
       }
       break;
     case STEPPER_NEW:
@@ -1627,28 +1668,28 @@ void runModule(uint8_t device)
           long pos_temp = readLong(8);
           int16_t speed_temp = readShort(12);
           speed_temp = abs(speed_temp);
-          encoders[slot_num-1].move(pos_temp,(float)speed_temp,extID,encoder_move_finish_callback);
+          encoders[slot_num-1]->move(pos_temp,(float)speed_temp,extID,encoder_move_finish_callback);
         }
         if(ENCODER_BOARD_POS_MOTION_MOVETO == subcmd)
         {
           long pos_temp = readLong(8);
           int16_t speed_temp = readShort(12);
           speed_temp = abs(speed_temp);
-          encoders[slot_num-1].moveTo(pos_temp,(float)speed_temp,extID,encoder_move_finish_callback);
+          encoders[slot_num-1]->moveTo(pos_temp,(float)speed_temp,extID,encoder_move_finish_callback);
         }
         else if(ENCODER_BOARD_SPEED_MOTION == subcmd)
         {
           int16_t speed_temp = readShort(8);  
-          encoders[slot_num-1].runSpeed((float)speed_temp);
+          encoders[slot_num-1]->runSpeed((float)speed_temp);
         }
         else if(ENCODER_BOARD_PWM_MOTION == subcmd)
         {
           int16_t speed_temp = readShort(8);  
-          encoders[slot_num-1].setTarPWM(speed_temp);     
+          encoders[slot_num-1]->setTarPWM(speed_temp);     
         }
         else if(ENCODER_BOARD_SET_CUR_POS_ZERO == subcmd)
         {
-          encoders[slot_num-1].setPulsePos(0);     
+          encoders[slot_num-1]->setPulsePos(0);     
         }
         else if(ENCODER_BOARD_CAR_POS_MOTION == subcmd)
         {
@@ -1656,23 +1697,23 @@ void runModule(uint8_t device)
           int16_t speed_temp = readShort(12);
           if(slot_num == 1)
           {
-            encoders[0].move(pos_temp,(float)speed_temp);
-            encoders[1].move(-pos_temp,(float)speed_temp);
+            encoders[0]->move(pos_temp,(float)speed_temp);
+            encoders[1]->move(-pos_temp,(float)speed_temp);
           }
           else if(slot_num == 2)
           {
-            encoders[0].move(-pos_temp,(float)speed_temp);
-            encoders[1].move(pos_temp,(float)speed_temp);
+            encoders[0]->move(-pos_temp,(float)speed_temp);
+            encoders[1]->move(pos_temp,(float)speed_temp);
           }
           else if(slot_num == 3)
           {
-            encoders[0].move(pos_temp,(float)speed_temp);
-            encoders[1].move(pos_temp,(float)speed_temp);
+            encoders[0]->move(pos_temp,(float)speed_temp);
+            encoders[1]->move(pos_temp,(float)speed_temp);
           }
           else if(slot_num == 4)
           {
-            encoders[0].move(-pos_temp,(float)speed_temp);
-            encoders[1].move(-pos_temp,(float)speed_temp);
+            encoders[0]->move(-pos_temp,(float)speed_temp);
+            encoders[1]->move(-pos_temp,(float)speed_temp);
           }
         }
       }
@@ -1741,16 +1782,11 @@ void readSensor(uint8_t device)
   {
     case ULTRASONIC_SENSOR:
       {
-        if(us == NULL)
+        if(ultrasonic_sensor.getPort() != port)
         {
-          us = new MeUltrasonicSensor(port);
+          ultrasonic_sensor = MeUltrasonicSensor(port);
         }
-        else if(us->getPort() != port)
-        {
-          delete us;
-          us = new MeUltrasonicSensor(port);
-        }
-        value = (float)us->distanceCm();
+        value = (float)ultrasonic_sensor.distanceCm();
         sendFloat(value);
       }
       break;
@@ -2147,11 +2183,11 @@ void readSensor(uint8_t device)
           uint8_t read_type = readBuffer(8);
           if(read_type == ENCODER_BOARD_POS)
           {
-            sendLong(encoders[slot-1].getCurPos());
+            sendLong(encoders[slot-1]->getCurPos());
           }
           else if(read_type == ENCODER_BOARD_SPEED)
           {
-            sendFloat(encoders[slot-1].getCurrentSpeed());
+            sendFloat(encoders[slot-1]->getCurrentSpeed());
           }
         }
       }
@@ -2214,7 +2250,7 @@ void PID_angle_compute(void)   //PID
   Serial.print(CompAngleX);
   Serial.print(" Output: ");
   Serial.print(PID_angle.Output);
-  Serial.print("PID_angle.Integral: ");
+  Serial.print(" PID_angle.Integral: ");
   Serial.print(PID_angle.Integral);
   Serial.print(" dif: ");
   Serial.println(PID_angle.differential);
@@ -2223,8 +2259,8 @@ void PID_angle_compute(void)   //PID
   pwm_left = constrain(pwm_left, -255, 255);
   pwm_right = constrain(pwm_right, -255, 255);
 
-  encoders[0].setMotorPwm(pwm_left);
-  encoders[1].setMotorPwm(pwm_right);
+  encoders[0]->setMotorPwm(pwm_left);
+  encoders[1]->setMotorPwm(pwm_right);
 }
 
 /**
@@ -2243,7 +2279,7 @@ void PID_angle_compute(void)   //PID
  */
 void PID_speed_compute(void)
 {
-  double speed_now = (encoders[1].getCurrentSpeed() - encoders[0].getCurrentSpeed())/2;
+  double speed_now = (encoders[1]->getCurrentSpeed() - encoders[0]->getCurrentSpeed())/2;
 
   last_speed_setpoint_filter  = last_speed_setpoint_filter  * 0.8;
   last_speed_setpoint_filter  += PID_speed.Setpoint * 0.2;
@@ -2273,16 +2309,17 @@ void PID_speed_compute(void)
   }
   
 #ifdef DEBUG_INFO
+  Serial.print("Speed now: ");
   Serial.print(speed_now);
-  Serial.print(","); 
+  Serial.print(", PID_speed.Setpoint: ");
   Serial.print(PID_speed.Setpoint);
-  Serial.print(",");      
+  Serial.print(", Last Speed Error: ");     
   Serial.print(last_speed_error_filter);
-  Serial.print(",");
+  Serial.print(", Last Speed Setpoint Filter: ");
   Serial.print(last_speed_setpoint_filter);
-  Serial.print(",");
+  Serial.print(", PID_speed.Integral: ");
   Serial.print(PID_speed.Integral);
-  Serial.print(",");
+  Serial.print(", PID_speed.Output: ");
   Serial.println(PID_speed.Output);
 #endif
   PID_angle.Setpoint =  RELAX_ANGLE + PID_speed.Output;
@@ -2313,14 +2350,14 @@ void reset(void)
   if((start_flag == true) && (abs(gyro_ext.getAngleX()) > 32))
   {
     agx_start_count = 0;
-    encoders[0].setMotorPwm(0);
-    encoders[1].setMotorPwm(0);
+    encoders[0]->setMotorPwm(0);
+    encoders[1]->setMotorPwm(0);
     PID_speed.Integral = 0;
     PID_angle.Setpoint = RELAX_ANGLE;
     PID_speed.Setpoint = 0;
     PID_turn.Setpoint = 0;
-    encoders[0].setPulsePos(0);
-    encoders[1].setPulsePos(0);
+    encoders[0]->setPulsePos(0);
+    encoders[1]->setPulsePos(0);
     PID_speed.Integral = 0;
     start_flag = false;
     last_speed_setpoint_filter = 0.0;
@@ -2333,11 +2370,11 @@ void reset(void)
   {
     agx_start_count = 0;
     PID_speed.Integral = 0;
-    encoders[0].setMotorPwm(0);
-    encoders[1].setMotorPwm(0);
+    encoders[0]->setMotorPwm(0);
+    encoders[1]->setMotorPwm(0);
     PID_angle.Setpoint = RELAX_ANGLE;
-    encoders[0].setPulsePos(0);
-    encoders[1].setPulsePos(0);
+    encoders[0]->setPulsePos(0);
+    encoders[1]->setPulsePos(0);
     lasttime_speed = lasttime_angle = millis();
     start_flag = true;
 #ifdef DEBUG_INFO
@@ -2488,8 +2525,8 @@ void balanced_model(void)
   }
   else
   {
-    encoders[0].setMotorPwm(0);
-    encoders[1].setMotorPwm(0);
+    encoders[0]->setMotorPwm(0);
+    encoders[1]->setMotorPwm(0);
   } 
 }
 
@@ -2509,14 +2546,10 @@ void balanced_model(void)
  */
 void ultrCarProcess(void)
 {
-  if(us == NULL)
-  {
-    us = new MeUltrasonicSensor(PORT_7);
-  }
   moveSpeed = 150;
-  if(us != NULL)
+  if(ultrasonic_sensor.getPort() > 0)
   {
-    distance = us->distanceCm();
+    distance = ultrasonic_sensor.distanceCm();
   }
   else
   {
@@ -2776,6 +2809,18 @@ boolean read_serial(void)
     return result;
   }
 }
+
+void updatePetersSensors(void){
+  encoders[0]->loop();
+  encoders[1]->loop();
+  if(millis() - update_sensor > 10) {
+    update_sensor = millis();
+    gyro_ext.fast_update();
+    // PID_angle_compute();
+    // PID_speed_compute();
+  }
+}
+
 void setup()
 {
   Serial.begin(115200);
@@ -2785,15 +2830,13 @@ void setup()
   while(!Serial2){}
   while(!Serial3){}
   delay(5);
-  for(int i=0;i<4;i++)
-  {
-    encoders[i].reset(i+1);
-  }
-  attachInterrupt(encoders[0].getIntNum(), isr_process_encoder1, RISING);
-  attachInterrupt(encoders[1].getIntNum(), isr_process_encoder2, RISING);
-  attachInterrupt(encoders[2].getIntNum(), isr_process_encoder3, RISING);
-  attachInterrupt(encoders[3].getIntNum(), isr_process_encoder4, RISING);
+
+  encoders[0]->reset(SLOT1);
+  encoders[1]->reset(SLOT2);
+  attachInterrupt(encoders[0]->getIntNum(), isr_process_encoder1, RISING);
+  attachInterrupt(encoders[1]->getIntNum(), isr_process_encoder2, RISING);
   delay(5);
+
   gyro_ext.begin();
   delay(5);
   pinMode(13,OUTPUT);
@@ -2808,15 +2851,6 @@ void setup()
   TCCR4A = _BV(WGM40);
   TCCR4B = _BV(CS41) | _BV(CS40) | _BV(WGM42);
 
-  for(int i=0;i<4;i++)
-  {
-    encoders[i].setPulse(8);
-    encoders[i].setRatio(46.67);
-    encoders[i].setPosPid(1.8, 0, 1.2);
-    encoders[i].setSpeedPid(0.18, 0, 0);
-    encoders[i].setMotionMode(DIRECT_MODE);
-  }
-
   leftflag=false;
   rightflag=false;
   PID_angle.Setpoint = RELAX_ANGLE;
@@ -2825,13 +2859,23 @@ void setup()
   PID_angle.D = 0.2;         // 0.2;
   PID_speed.P = 0.06;        // 0.06
   PID_speed.I = 0.005;       // 0.005
+  PID_speed.D = 0;
+
+  for(int i=0; i<2; i++)
+  {
+    encoders[i]->setPulse(8);
+    encoders[i]->setRatio(46.67);
+    encoders[i]->setPosPid(1.8, 0, 1.2);
+    encoders[i]->setSpeedPid(PID_speed.P, PID_speed.I, PID_speed.D);
+    encoders[i]->setMotionMode(PID_MODE);
+  }
+
   readEEPROM();
   //megapi_mode = BALANCED_MODE;
   Serial.print("Version: ");
   Serial.println(mVersion);
   update_sensor = lasttime_speed = lasttime_angle = millis();
   blink_time = millis();
-  BluetoothSource = DATA_SERIAL;
 }
 
 /**
@@ -2850,9 +2894,6 @@ void setup()
  */
 void loop()
 {
-  currentTime = millis()/1000.0-lastTime;
-  keyPressed = buttonSensor.pressed();
-
   if(millis() - blink_time > 1000)
   {
     blink_time = millis();
@@ -2860,84 +2901,23 @@ void loop()
     digitalWrite(13,blink_flag);
   }
 
-  if(ir != NULL)
-  {
-    IrProcess();
-  }
+  updatePetersSensors();
 
-  for(int i=0;i<4;i++)
+  if(megapi_mode == BLUETOOTH_MODE)
   {
-    steppers[i].update();
-    encoders[i].loop();
-  }
-
-  //  while(Serial.available() > 0)
-  //  {
-  //    char c = Serial.read();
-  //    Serial.write(c);
-  //    buf[bufindex++]=c;
-  //    if((c=='\n') || (c=='#'))
-  //    {
-  //      parseCmd(buf);
-  //      memset(buf,0,64);
-  //      bufindex = 0;
-  //    }
-  //  }
-
-  readSerial();
-  while(isAvailable)
-  {
-    unsigned char c = serialRead & 0xff;
-    if((c == 0x55) && (isStart == false))
+    // read_serial();
+    if(ultrasonic_sensor.distanceCm() < 20)
     {
-      if(prevc == 0xff)
-      {
-        index=1;
-        isStart = true;
-      }
+      Stop();
     }
     else
     {
-      prevc = c;
-      if(isStart)
-      {
-        if(index == 2)
-        {
-          dataLen = c; 
-        }
-        else if(index > 2)
-        {
-          dataLen--;
-        }
-        writeBuffer(index,c);
-      }
-    }
-    index++;
-    if(index > 51)
-    {
-      index=0; 
-      isStart=false;
-    }
-    if(isStart && (dataLen == 0) && (index > 3))
-    { 
-      isStart = false;
-      parseData(); 
-      index=0;
-    }
-    readSerial();
-  }
-
-  if(Compass.getPort() != 0)
-  {
-    Compass.getAngle();
-  }
-  angle_speed = gyro_ext.getGyroY();
-  if(megapi_mode == BLUETOOTH_MODE)
-  {
-    if(millis() - update_sensor > 10)
-    {
-      update_sensor = millis();
-      gyro_ext.fast_update();
+      Serial.println("Turning Left!\r\n");
+      TurnLeft90();
+      delay(5000);
+      Serial.println("Turning Right!\r\n");
+      TurnRight90();
+      delay(5000);
     }
   }
   else if(megapi_mode == AUTOMATIC_OBSTACLE_AVOIDANCE_MODE)
@@ -2953,4 +2933,29 @@ void loop()
   {
     line_model();
   }
+
+  //Example on how to use the DC Motors
+  // TurnLeft();
+  // delay(1000);
+  // Stop();
+  // delay(1000);
+  // TurnRight();
+  // delay(1000);
+  // Stop();
+
+  //Example on how to use the ultrasonic sensor
+  // Serial.print("Distance : ");
+  // Serial.print(ultrasonic_sensor.distanceCm() );
+  // Serial.println(" cm");
+  // delay(100); /* the minimal measure interval is 100 milliseconds */
+
+  //Example on how to use the Gyro sensor
+  // gyro_ext.update();
+  // Serial.read();
+  // Serial.print("X:");
+  // Serial.print(gyro_ext.getAngleX() );
+  // Serial.print(" Y:");
+  // Serial.print(gyro_ext.getAngleY() );
+  // Serial.print(" Z:");
+  // Serial.println(gyro_ext.getAngleZ() );
 }
