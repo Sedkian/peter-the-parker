@@ -626,8 +626,81 @@ void BackwardAndTurnRight(void)
  */
 void TurnLeft(void)
 {
-  encoders[0]->setMotorPwm(moveSpeed);
-  encoders[1]->setMotorPwm(-moveSpeed/2);
+  encoders[0]->setMotorPwm(moveSpeed * 0.7);
+  encoders[1]->setMotorPwm(moveSpeed * 0.7);
+}
+
+double getAnglePlusDegrees(double angle, double degrees)
+{
+  double targetAngle = angle + degrees;
+  if(targetAngle > 180)
+  {
+    targetAngle -= 360;
+  }
+  else if(targetAngle < -180)
+  {
+    targetAngle += 360;
+  }
+  return targetAngle;
+}
+
+double getAverageOfNZAngles(int N)
+{
+  double angle = 0;
+  for(int i = 0; i < N; i++)
+  {
+    gyro_ext.update();
+    angle += gyro_ext.getAngleZ();
+  }
+  return angle / N;
+}
+
+void TurnLeft90(void)
+{
+  // Read 5 reading of the current z angle of the gyro and average them
+  double angle = gyro_ext.getAngleZ();
+  // Calculate the angle to turn to based on the current angle (-180, 180)
+  double targetAngle = getAnglePlusDegrees(angle, 90);
+
+  // Wait until the angle is reached or timeout
+  unsigned long startTime_ms = millis();
+  unsigned long timeout_ms = 5000;
+  int angleTolerance = 2;
+  while((abs(targetAngle - angle) > angleTolerance) && ((millis() - startTime_ms) < timeout_ms))
+  {
+    // Set the speed to turn at
+    TurnLeft();
+    updatePetersSensors();
+    angle = gyro_ext.getAngleZ();
+    delay(10);
+  }
+
+  // Stop the motors
+  Stop();
+}
+
+void TurnRight90(void)
+{
+  // Read 5 reading of the current z angle of the gyro and average them
+  double angle = gyro_ext.getAngleZ();
+  // Calculate the angle to turn to based on the current angle (-180, 180)
+  double targetAngle = getAnglePlusDegrees(angle, -90);
+
+  // Wait until the angle is reached or timeout
+  unsigned long startTime_ms = millis();
+  unsigned long timeout_ms = 5000;
+  int angleTolerance = 2;
+  while((abs(targetAngle - angle) > angleTolerance) && ((millis() - startTime_ms) < timeout_ms))
+  {
+    // Set the speed to turn at
+    TurnRight();
+    updatePetersSensors();
+    angle = gyro_ext.getAngleZ();
+    delay(10);
+  }
+
+  // Stop the motors
+  Stop();
 }
 
 /**
@@ -646,8 +719,8 @@ void TurnLeft(void)
  */
 void TurnRight(void)
 {
-  encoders[0]->setMotorPwm(moveSpeed/2);
-  encoders[1]->setMotorPwm(-moveSpeed);
+  encoders[0]->setMotorPwm(-moveSpeed * 0.7);
+  encoders[1]->setMotorPwm(-moveSpeed * 0.7);
 }
 
 /**
@@ -2177,7 +2250,7 @@ void PID_angle_compute(void)   //PID
   Serial.print(CompAngleX);
   Serial.print(" Output: ");
   Serial.print(PID_angle.Output);
-  Serial.print("PID_angle.Integral: ");
+  Serial.print(" PID_angle.Integral: ");
   Serial.print(PID_angle.Integral);
   Serial.print(" dif: ");
   Serial.println(PID_angle.differential);
@@ -2236,16 +2309,17 @@ void PID_speed_compute(void)
   }
   
 #ifdef DEBUG_INFO
+  Serial.print("Speed now: ");
   Serial.print(speed_now);
-  Serial.print(","); 
+  Serial.print(", PID_speed.Setpoint: ");
   Serial.print(PID_speed.Setpoint);
-  Serial.print(",");      
+  Serial.print(", Last Speed Error: ");     
   Serial.print(last_speed_error_filter);
-  Serial.print(",");
+  Serial.print(", Last Speed Setpoint Filter: ");
   Serial.print(last_speed_setpoint_filter);
-  Serial.print(",");
+  Serial.print(", PID_speed.Integral: ");
   Serial.print(PID_speed.Integral);
-  Serial.print(",");
+  Serial.print(", PID_speed.Output: ");
   Serial.println(PID_speed.Output);
 #endif
   PID_angle.Setpoint =  RELAX_ANGLE + PID_speed.Output;
@@ -2735,6 +2809,18 @@ boolean read_serial(void)
     return result;
   }
 }
+
+void updatePetersSensors(void){
+  encoders[0]->loop();
+  encoders[1]->loop();
+  if(millis() - update_sensor > 10) {
+    update_sensor = millis();
+    gyro_ext.fast_update();
+    // PID_angle_compute();
+    // PID_speed_compute();
+  }
+}
+
 void setup()
 {
   Serial.begin(115200);
@@ -2765,15 +2851,6 @@ void setup()
   TCCR4A = _BV(WGM40);
   TCCR4B = _BV(CS41) | _BV(CS40) | _BV(WGM42);
 
-  for(int i=0; i<2; i++)
-  {
-    encoders[i]->setPulse(8);
-    encoders[i]->setRatio(46.67);
-    encoders[i]->setPosPid(1.8, 0, 1.2);
-    encoders[i]->setSpeedPid(0.18, 0, 0);
-    encoders[i]->setMotionMode(DIRECT_MODE);
-  }
-
   leftflag=false;
   rightflag=false;
   PID_angle.Setpoint = RELAX_ANGLE;
@@ -2782,11 +2859,21 @@ void setup()
   PID_angle.D = 0.2;         // 0.2;
   PID_speed.P = 0.06;        // 0.06
   PID_speed.I = 0.005;       // 0.005
+  PID_speed.D = 0;
+
+  for(int i=0; i<2; i++)
+  {
+    encoders[i]->setPulse(8);
+    encoders[i]->setRatio(46.67);
+    encoders[i]->setPosPid(1.8, 0, 1.2);
+    encoders[i]->setSpeedPid(PID_speed.P, PID_speed.I, PID_speed.D);
+    encoders[i]->setMotionMode(PID_MODE);
+  }
 
   readEEPROM();
   //megapi_mode = BALANCED_MODE;
-  sendString("Version: ");
-  sendString(mVersion);
+  Serial.print("Version: ");
+  Serial.println(mVersion);
   update_sensor = lasttime_speed = lasttime_angle = millis();
   blink_time = millis();
 }
@@ -2807,10 +2894,6 @@ void setup()
  */
 void loop()
 {
-  sendString("Starting Loop!\r\n");
-  currentTime = millis()/1000.0-lastTime;
-  keyPressed = buttonSensor.pressed();
-
   if(millis() - blink_time > 1000)
   {
     blink_time = millis();
@@ -2818,36 +2901,23 @@ void loop()
     digitalWrite(13,blink_flag);
   }
 
-  encoders[0]->loop();
-  encoders[1]->loop();
-  gyro_ext.update();
+  updatePetersSensors();
 
-  //  while(Serial.available() > 0)
-  //  {
-  //    char c = Serial.read();
-  //    Serial.write(c);
-  //    buf[bufindex++]=c;
-  //    if((c=='\n') || (c=='#'))
-  //    {
-  //      parseCmd(buf);
-  //      memset(buf,0,64);
-  //      bufindex = 0;
-  //    }
-  //  }
-
-  read_serial();
-
-  if(Compass.getPort() != 0)
-  {
-    Compass.getAngle();
-  }
-  angle_speed = gyro_ext.getGyroY();
   if(megapi_mode == BLUETOOTH_MODE)
   {
-    if(millis() - update_sensor > 10)
+    // read_serial();
+    if(ultrasonic_sensor.distanceCm() < 20)
     {
-      update_sensor = millis();
-      gyro_ext.fast_update();
+      Stop();
+    }
+    else
+    {
+      Serial.println("Turning Left!\r\n");
+      TurnLeft90();
+      delay(5000);
+      Serial.println("Turning Right!\r\n");
+      TurnRight90();
+      delay(5000);
     }
   }
   else if(megapi_mode == AUTOMATIC_OBSTACLE_AVOIDANCE_MODE)
@@ -2888,12 +2958,4 @@ void loop()
   // Serial.print(gyro_ext.getAngleY() );
   // Serial.print(" Z:");
   // Serial.println(gyro_ext.getAngleZ() );
-
-  //Example on Obstacle avoidance
-  if(ultrasonic_sensor.distanceCm() < 20)
-  {
-    Stop();
-  }
-
-  delay(1000);
 }
