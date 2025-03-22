@@ -55,7 +55,7 @@ def a_star(grid, start, goal):
     # If no path is found
     return None
 
-def visualize_grid(grid, path):
+def visualize_grid(grid, start, end, path):
     for i in range(len(grid[0])+1):
         if i == 0:
             print("+", end="")
@@ -71,6 +71,10 @@ def visualize_grid(grid, path):
                     print("|", end=" ")
                 if grid[i][j] == 1:
                     print("X", end=" ")  # Obstacle
+                elif (i,j) == start:
+                    print("S", end=" ")  # Start
+                elif (i,j) == end:
+                    print("E", end=" ")  # End
                 else:
                     print(".", end=" ")  # Empty space
             print("|", end=" ")
@@ -85,6 +89,10 @@ def visualize_grid(grid, path):
                     print("P", end=" ")  # Path
                 elif grid[i][j] == 1:
                     print("X", end=" ")  # Obstacle
+                elif (i,j) == start:
+                    print("S", end=" ")  # Start
+                elif (i,j) == end:
+                    print("E", end=" ")  # End
                 else:
                     print(".", end=" ")  # Empty space
             print("|", end=" ")
@@ -168,14 +176,14 @@ def calcuate_moves(path):
 
 
 grid = [
-    [1, 0, 1, 1, 0, 0],
+    [1, 0, 0, 1, 0, 0],
     [1, 0, 1, 1, 0, 1],
     [1, 0, 1, 1, 0, 1],
     [1, 0, 1, 1, 0, 1],
     [0, 0, 0, 0, 0, 1],
 ]
-s = (4, 0)  #(row, column)
-g = (0, 5) 
+s = (0, 5)  #(row, column)
+g = (0, 2) 
 
 grid2 = [
     [1, 0, 0, 0, 0, 1],
@@ -198,8 +206,8 @@ s3 = (4,0)
 g3 = (4,4)
 
 grid4 = []
-r = 100 
-c = 100
+r = 10 
+c = 10
 for i in range(r):
     arr = []
     for j in range(c):
@@ -213,7 +221,7 @@ grid4[g4[0]][g4[1]] = 0
 
 
 # Find the path
-path = a_star(grid4, s4, g4)
+path = a_star(grid, s, g)
 
 if path:
     print("Path found:", path)
@@ -221,8 +229,8 @@ else:
     print("No path found.")
 
 # Visualize the grid with the path
-visualize_grid(grid4, None)
-visualize_grid(grid4, path)
+visualize_grid(grid, s, g, None)
+visualize_grid(grid, s, g, path)
 
 m = calcuate_moves(path)
 print(m)
