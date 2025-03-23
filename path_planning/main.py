@@ -62,7 +62,7 @@ def generate_random_grid(row, column, weight_lot = 1, weight_clear = 1):
         grid.append(random.choices([0,1], weights=[weight_lot,weight_clear], k=column))
     return grid
 
-def visualize_grid(grid, start, end, path):
+def visualize_grid(grid, path, start, end):
     for i in range(len(grid[0])+1):
         if i == 0:
             print("+", end="")
@@ -178,19 +178,30 @@ def calcuate_moves(path):
         
     return movements
             
-                
+def moves_to_hex(moves):
+    output_string = "FF 55 " + str.format("{:x} ",len(moves))
+    temp_string = ""
+    for mo in moves:
+        print(mo)
+        match(mo[0]):
+            case 0: #translation
+                temp_string = mo[1] << 1 
+            case 1: #rotation
+                temp_string = (mo[1] << 1) + 1 
+        output_string += str(temp_string) + " "
+    return output_string
 
 
 
 grid = [
-    [1, 0, 0, 1, 0, 0],
+    [1, 0, 1, 1, 0, 0],
     [1, 0, 1, 1, 0, 1],
     [1, 0, 1, 1, 0, 1],
     [1, 0, 1, 1, 0, 1],
     [0, 0, 0, 0, 0, 1],
 ]
-s = (0, 5)  #(row, column)
-g = (0, 2) 
+s = (4, 0)  #(row, column)
+g = (0, 5) 
 
 grid2 = [
     [1, 0, 0, 0, 0, 1],
@@ -239,7 +250,8 @@ else:
 #visualize_grid(grid, s, g, None)
 #visualize_grid(grid, s, g, path)
 
-m = calcuate_moves(path)
-#print(m)
-gw = generate_random_grid(10,10, 5)
-visualize_grid(gw, None, None, None)
+moves = calcuate_moves(path)
+#gw = generate_random_grid(10,10, 5)
+visualize_grid(grid, None, None, None)
+visualize_grid(grid, path, s, g)
+bluetooth_input = moves_to_hex(moves)
