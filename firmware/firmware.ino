@@ -74,7 +74,9 @@ MeModule modules[12];
 int16_t len = 52;
 int16_t servo_pins[12]={0,0,0,0,0,0,0,0,0,0,0,0};
 //Just for MegaPi
-int16_t moveSpeed = 180;
+int16_t moveSpeed = 200;
+int16_t frontLeftEncoderSpeed = -0.9 * moveSpeed;
+int16_t rearRightEncoderSpeed = moveSpeed;
 int16_t turnSpeed = 180;
 int16_t minSpeed = 45;
 int16_t factor = 23;
@@ -253,7 +255,7 @@ typedef struct
   double Setpoint, Output, Integral,differential, last_error;
 } PID;
 
-PID  PID_angle, PID_speed, PID_turn;
+PID  PID_angle, PID_speed, PID_turn, PID_pos;
 
 /**
  * \par Function
@@ -2615,9 +2617,7 @@ void line_model(void)
 }
 
 void translateNBlocks(uint8_t nBlocks){
-  for(uint8_t i = 0; i < nBlocks; i++){
-    moveDistance(nBlocks * MOVEMENT_BLOCK_SIZE_CM);
-  }
+  moveDistance(nBlocks * MOVEMENT_BLOCK_SIZE_CM);
 }
 
 void rotateByCase(uint8_t caseNum){
@@ -2643,7 +2643,6 @@ void executePath(void){
   uint8_t currIdx = 3;
   while ((currIdx-3) < dataLen)
   {
-
     uint8_t commandByte = readBuffer(currIdx);
     Serial.print("Command Byte: ");
     Serial.println(commandByte, HEX);
@@ -2680,6 +2679,7 @@ void executePath(void){
         }
         break;
     }
+    delay(500);
   }
 }
 
@@ -2764,6 +2764,14 @@ void updatePetersSensors(void){
   }
 }
 
+void moveFrontLeftEncoderForward(void){
+  frontLeftEncoder->setMotorPwm(frontLeftEncoderSpeed);
+}
+
+void moveRearRightEncoderForward(void){
+  rearRightEncoder->setMotorPwm(rearRightEncoderSpeed);
+}
+
 /* Start our Firmware Code */
 /**
  * \par Function
@@ -2781,8 +2789,8 @@ void updatePetersSensors(void){
  */
 void Forward(void)
 {
-  frontLeftEncoder->setMotorPwm(-moveSpeed);
-  rearRightEncoder->setMotorPwm(moveSpeed);
+  moveFrontLeftEncoderForward();
+  moveRearRightEncoderForward();
 }
 
 /**
@@ -2821,8 +2829,8 @@ void Backward(void)
  */
 void TurnLeft(void)
 {
-  frontLeftEncoder->setMotorPwm(moveSpeed * 0.7);
-  rearRightEncoder->setMotorPwm(moveSpeed * 0.7);
+  frontLeftEncoder->setMotorPwm(-frontLeftEncoderSpeed * 0.7);
+  rearRightEncoder->setMotorPwm(rearRightEncoderSpeed * 0.7);
 }
 
 /**
@@ -2876,8 +2884,33 @@ double getAverageOfNZAngles(int N)
   {
     gyro_ext.update();
     angle += gyro_ext.getAngleZ();
+    delay(100);
   }
   return angle / N;
+}
+
+void turnByDegrees(double degrees){
+  double angle = getAverageOfNZAngles(5);
+  double targetAngle = getAnglePlusDegrees(angle, degrees);
+
+  unsigned long startTime_ms = millis();
+  unsigned long timeout_ms = 5000;
+  int angleTolerance = 2;
+  while((abs(targetAngle - angle) > angleTolerance) && ((millis() - startTime_ms) < timeout_ms))
+  {
+    if (degrees > 0)
+    {
+      TurnLeft();
+    }
+    else
+    {
+      TurnRight();
+    }
+    updatePetersSensors();
+    angle = gyro_ext.getAngleZ();
+    delay(10);
+  }
+  Stop();
 }
 
 /**
@@ -2896,26 +2929,7 @@ double getAverageOfNZAngles(int N)
  */
 void TurnLeft90(void)
 {
-  // Read 5 reading of the current z angle of the gyro and average them
-  double angle = gyro_ext.getAngleZ();
-  // Calculate the angle to turn to based on the current angle (-180, 180)
-  double targetAngle = getAnglePlusDegrees(angle, 90);
-
-  // Wait until the angle is reached or timeout
-  unsigned long startTime_ms = millis();
-  unsigned long timeout_ms = 5000;
-  int angleTolerance = 2;
-  while((abs(targetAngle - angle) > angleTolerance) && ((millis() - startTime_ms) < timeout_ms))
-  {
-    // Set the speed to turn at
-    TurnLeft();
-    updatePetersSensors();
-    angle = gyro_ext.getAngleZ();
-    delay(10);
-  }
-
-  // Stop the motors
-  Stop();
+  turnByDegrees(90);
 }
 
 /**
@@ -2934,26 +2948,7 @@ void TurnLeft90(void)
  */
 void TurnRight90(void)
 {
-  // Read 5 reading of the current z angle of the gyro and average them
-  double angle = gyro_ext.getAngleZ();
-  // Calculate the angle to turn to based on the current angle (-180, 180)
-  double targetAngle = getAnglePlusDegrees(angle, -90);
-
-  // Wait until the angle is reached or timeout
-  unsigned long startTime_ms = millis();
-  unsigned long timeout_ms = 5000;
-  int angleTolerance = 2;
-  while((abs(targetAngle - angle) > angleTolerance) && ((millis() - startTime_ms) < timeout_ms))
-  {
-    // Set the speed to turn at
-    TurnRight();
-    updatePetersSensors();
-    angle = gyro_ext.getAngleZ();
-    delay(10);
-  }
-
-  // Stop the motors
-  Stop();
+  turnByDegrees(-90);
 }
 
 /**
@@ -2972,8 +2967,8 @@ void TurnRight90(void)
  */
 void TurnRight(void)
 {
-  frontLeftEncoder->setMotorPwm(-moveSpeed * 0.7);
-  rearRightEncoder->setMotorPwm(-moveSpeed * 0.7);
+  frontLeftEncoder->setMotorPwm(frontLeftEncoderSpeed * 0.7);
+  rearRightEncoder->setMotorPwm(-rearRightEncoderSpeed * 0.7);
 }
 
 /**
@@ -3039,16 +3034,16 @@ void moveForwardPulses(long pulses) {
   double absLeftDiff = abs(frontLeftEncoder->getPulsePos() - frontLeftTargetPulsePos);
   double absRightDiff = abs(rearRightEncoder->getPulsePos() - rearRightTargetPulsePos);
   // Loop until the target position is reached within the tolerance
-  while (absLeftDiff > tolerance || absRightDiff > tolerance) {
+  while (absLeftDiff > tolerance && absRightDiff > tolerance) {
     // Update the motor speed
     if (absLeftDiff > tolerance) {
-      frontLeftEncoder->setMotorPwm(-moveSpeed);
+      moveFrontLeftEncoderForward();
       absLeftDiff = abs(frontLeftEncoder->getPulsePos() - frontLeftTargetPulsePos);
     }
     else frontLeftEncoder->setMotorPwm(0);
 
     if (absRightDiff > tolerance) {
-      rearRightEncoder->setMotorPwm(moveSpeed);
+      moveRearRightEncoderForward();
       absRightDiff = abs(rearRightEncoder->getPulsePos() - rearRightTargetPulsePos);
     }
     else rearRightEncoder->setMotorPwm(0);
@@ -3059,6 +3054,7 @@ void moveForwardPulses(long pulses) {
 
     // Add a small delay to prevent overwhelming the CPU
     delay(10);
+    Serial.println("Stuck Here!");
   }
 
   // Stop the motor
