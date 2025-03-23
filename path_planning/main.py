@@ -1,5 +1,6 @@
 import heapq
 from random import randint
+import random
 
 def heuristic(a, b):
     """Calculate the Manhattan distance between two points."""
@@ -54,6 +55,12 @@ def a_star(grid, start, goal):
     
     # If no path is found
     return None
+
+def generate_random_grid(row, column, weight_lot = 1, weight_clear = 1):
+    grid = []
+    for i in range(row):
+        grid.append(random.choices([0,1], weights=[weight_lot,weight_clear], k=column))
+    return grid
 
 def visualize_grid(grid, start, end, path):
     for i in range(len(grid[0])+1):
@@ -129,18 +136,18 @@ def calcuate_moves(path):
                 d = "south"
         if(curr != d):
             #For rotations: 
-            # CounterClockWise 90 = -1
+            # CounterClockWise 90 = 0
             # ClockWise 90 = 1
-            # ClockWise 90 = 2
+            # ClockWise 180 = 2
             match[curr,d]:
                 case["north","east"]:
                     rot = 1
                 case["north","west"]:
-                    rot = -1
+                    rot = 0
                 case["north","south"]:
                     rot = 2
                 case["east","north"]:
-                    rot = -1
+                    rot = 0
                 case["east","south"]:
                     rot = 1
                 case["east","west"]:
@@ -150,13 +157,13 @@ def calcuate_moves(path):
                 case["south","west"]:
                     rot = 1
                 case["south","east"]:
-                    rot = -1
+                    rot = 0
                 case["west","north"]:
                     rot = 1
                 case["west","east"]:
                     rot = 2
                 case["west","south"]:
-                    rot = -1 
+                    rot = 0 
             print("Travel line of length {0} from Blocks {1}-{2}".format(length, start_block,curr_block))
             print("Rotation: {0}".format(rot))  
             movements.append([0, length]) #transitional movement
@@ -229,8 +236,10 @@ else:
     print("No path found.")
 
 # Visualize the grid with the path
-visualize_grid(grid, s, g, None)
-visualize_grid(grid, s, g, path)
+#visualize_grid(grid, s, g, None)
+#visualize_grid(grid, s, g, path)
 
 m = calcuate_moves(path)
-print(m)
+#print(m)
+gw = generate_random_grid(10,10, 5)
+visualize_grid(gw, None, None, None)
