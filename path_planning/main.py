@@ -113,13 +113,14 @@ def visualize_grid(grid, path = None, start = None, end = None):
     print("-+", end="")
     print()
 
-def calcuate_moves(path):
+def calcuate_moves(path, orientation = "east"):
     if path is None:
         return None 
     movements = []
-    curr = "east"
+    curr = orientation 
     length = 0
     start_block = path[0]
+
     for i in range(len(path)-1):
         curr_block = path[i]
         next_block = path[i+1]
@@ -134,6 +135,7 @@ def calcuate_moves(path):
                 d = "north"
             case [-1,0]:
                 d = "south"
+
         if(curr != d):
             #For rotations: 
             # CounterClockWise 90 = 0
@@ -195,50 +197,60 @@ def endpoints_open(grid, start, end):
     grid[start[0]][start[1]] = 0
     grid[end[0]][end[1]] = 0
 
-grid = [
-    [1, 0, 1, 1, 0, 0],
+
+
+## MAIN -------------------------------
+grids = []
+
+grid1 = [
+    [1, 0, 1, 1, 0, 1],
     [1, 0, 1, 1, 0, 1],
     [1, 0, 1, 1, 0, 1],
     [1, 0, 1, 1, 0, 1],
     [0, 0, 0, 0, 0, 1],
 ]
-s = (4, 0)  #(row, column)
-g = (0, 5) 
+s1 = (4, 0)  #(row, column)
+e1 = (0, 5) 
 
 grid2 = [
     [1, 0, 0, 0, 0, 1],
     [1, 0, 1, 1, 0, 1],
-    [1, 0, 0, 1, 0, 1],
+    [1, 0, 1, 1, 0, 1],
     [1, 1, 1, 1, 0, 1],
     [0, 0, 0, 0, 0, 1],
 ]
 s2 = (4,0)
-g2 = (2,2)
+e2 = (2,2)
 
 grid3 = [
     [1, 0, 0, 0, 0, 1],
     [1, 0, 1, 1, 0, 1],
     [1, 0, 0, 1, 0, 1],
     [1, 1, 0, 1, 0, 1],
-    [0, 0, 0, 1, 0, 1],
+    [1, 0, 0, 1, 0, 1],
 ]
-s3 = (4,0)
-g3 = (4,4)
+s3 = (4,1)
+e3 = (4,5)
 
+grid4 = generate_random_grid(50,50, 1, 4)
+s4 =(0,0)
+e4 = (40,40)
+grids.append([grid1, s1, e1, "east"])
+#grids.append([grid2, s2, e2, "east"])
+#grids.append([grid3, s3, e3, "north"])
+#grids.append([grid4, s4, e4, "east"])
 
-#rid = generate_random_grid(10,10,1,3)
-visualize_grid(grid, None, None, None)
-endpoints_open(grid, s,g)
-visualize_grid(grid, None, s, g)
 # Find the path
-#path = a_star(grid, s, g)
 
-# Visualize the grid with the path
-#visualize_grid(grid, s, g, None)
-#visualize_grid(grid, s, g, path)
 
-#moves = calcuate_moves(path)
-#gw = generate_random_grid(10,10, 5)
-#visualize_grid(grid, None, None, None)
-#visualize_grid(grid, path, s, g)
-#bluetooth_input = moves_to_hex(moves)
+i=0
+for grid, start, end, orientation in grids:
+    print("Grid " + str(i))
+    endpoints_open(grid, start, end)
+    visualize_grid(grid, None, start, end)
+    path = a_star(grid, start, end)
+    visualize_grid(grid, path, start, end)
+    moves = calcuate_moves(path, orientation)
+    hex_moves = moves_to_hex(moves)
+    print(hex_moves)
+    i += 1
