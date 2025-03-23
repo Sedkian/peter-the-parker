@@ -141,6 +141,10 @@ long blink_time = 0;
 long last_Pulse_pos_encoder1 = 0;
 long last_Pulse_pos_encoder2 = 0;
 
+uint8_t bluetoothHeadA = 0xff;
+uint8_t bluetoothHeadB = 0x55;
+uint8_t bluetoothEnd = 0xff;
+
 boolean isStart = false;
 boolean isAvailable = false;
 boolean leftflag;
@@ -233,6 +237,9 @@ float RELAX_ANGLE = -1;                    //Natural balance angle,should be adj
 #define RUN 2
 #define RESET 4
 #define START 5
+
+#define TRANSLATION_CMD 0
+#define ROTATION_CMD 1
 
 typedef struct
 {
@@ -2601,6 +2608,49 @@ void line_model(void)
   }
 }
 
+void executePath(void){
+  isStart = false;
+  uint8_t dataLen = readBuffer(2);
+  uint8_t currIdx = 3;
+  while ((currIdx-3) < dataLen)
+  {
+
+    uint8_t commandByte = readBuffer(currIdx);
+    Serial.print("Command Byte: ");
+    Serial.println(commandByte, HEX);
+    uint8_t actionType = commandByte & 0x01;
+    uint8_t actionValue = (commandByte >> 1) & 0x7F;
+    currIdx++;
+
+    Serial.print("Action Type: ");
+    Serial.println(actionType, HEX);
+
+    switch(actionType)
+    {
+      case TRANSLATION_CMD:
+        {
+          Serial.print("Translation by ");
+          Serial.print(actionValue);
+          Serial.println(" blocks");
+          writeEnd();
+        }
+        break;
+      case ROTATION_CMD:
+        {
+          Serial.print("Rotation case ");
+          Serial.println(actionValue);
+          callOK();
+        }
+        break;
+      default:
+        {
+          Serial.println("Invalid Command");
+        }
+        break;
+    }
+  }
+}
+
 uint8_t buf[64];
 uint8_t bufindex;
 
@@ -2621,33 +2671,40 @@ uint8_t bufindex;
 boolean read_serial(void)
 {
   boolean result = false;
+  unsigned long print_time = 0;
   readSerial();
-  if(isAvailable)
+  while(isAvailable)
   {
-    uint8_t c = serialRead & 0xff;
+    uint8_t currentByte = serialRead & 0xff;
+    Serial.print(currentByte,HEX);
+    Serial.println("");
     result = true;
-    if((c == 0x55) && (isStart == false))
+    if((currentByte == bluetoothHeadB) && (isStart == false))
     {
-      if(prevc == 0xff)
+      Serial.println("A");
+      if(prevc == bluetoothHeadA)
       {
+        Serial.println("B");
         index=1;
         isStart = true;
       }
     }
     else
     {
-      prevc = c;
+      prevc = currentByte;
+      Serial.print("Last Byte: ");
+      Serial.println(prevc,HEX);
       if(isStart)
       {
         if(index == 2)
         {
-          dataLen = c; 
+          dataLen = currentByte; 
         }
         else if(index > 2)
         {
           dataLen--;
         }
-        writeBuffer(index,c);
+        writeBuffer(index,currentByte);
       }
     }
     index++;
@@ -2656,14 +2713,29 @@ boolean read_serial(void)
       index=0; 
       isStart=false;
     }
-    if(isStart && (dataLen == 0) && (index > 3))
-    { 
-      isStart = false;
-      parseData(); 
-      index=0;
-    }
-    return result;
+    // Print the value of index
+    Serial.print("Index: ");
+    Serial.println(index);
+    readSerial();
   }
+
+  if(isStart && (dataLen == 0) && (index > 3))
+  { 
+    isStart = false;
+    Serial.println("Execute Path");
+    executePath(); 
+  }
+  // else if (millis() - print_time > 5000)
+  // {
+  //   print_time = millis();
+  //   Serial.print("DataLen: ");
+  //   Serial.println(dataLen);
+  //   Serial.print("Index: ");
+  //   Serial.println(index);
+  // }
+
+  index = 0;
+  return result;
 }
 
 void updatePetersSensors(void){
@@ -2672,8 +2744,6 @@ void updatePetersSensors(void){
   if(millis() - update_sensor > 10) {
     update_sensor = millis();
     gyro_ext.fast_update();
-    // PID_angle_compute();
-    // PID_speed_compute();
   }
 }
 
@@ -3059,28 +3129,28 @@ void loop()
     digitalWrite(13,blink_flag);
   }
 
-  updatePetersSensors();
+  // updatePetersSensors();
 
   if(megapi_mode == BLUETOOTH_MODE)
   {
-    // read_serial();
-    if(ultrasonic_sensor.distanceCm() < 20)
-    {
-      Stop();
-    }
-    else
-    {
-      // Serial.println("Turning Left!\r\n");
-      // TurnLeft90();
-      // delay(5000);
-      // Serial.println("Turning Right!\r\n");
-      // TurnRight90();
-      if (calculate){
-        calculate = false;
-        moveDistance(30);
-      }
-      else Stop();
-    }
+    read_serial();
+    // if(ultrasonic_sensor.distanceCm() < 20)
+    // {
+    //   Stop();
+    // }
+    // else
+    // {
+    //   // Serial.println("Turning Left!\r\n");
+    //   // TurnLeft90();
+    //   // delay(5000);
+    //   // Serial.println("Turning Right!\r\n");
+    //   // TurnRight90();
+    //   // if (calculate){
+    //   //   calculate = false;
+    //   //   moveDistance(30);
+    //   // }
+    //   // else Stop();
+    // }
   }
   else if(megapi_mode == AUTOMATIC_OBSTACLE_AVOIDANCE_MODE)
   { 
