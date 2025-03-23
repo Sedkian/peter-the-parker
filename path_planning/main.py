@@ -175,7 +175,7 @@ def calcuate_moves(path, orientation = "east"):
             length = 1
         else:
             length += 1
-    print("Last line:\nTravel line of length {0} from Blocks {1}-{2}".format(length, start_block,curr_block))
+    print("Travel line of length {0} from Blocks {1}-{2}".format(length, start_block,curr_block))
     movements.append([0, length]) #transitional movement
         
     return movements
@@ -184,7 +184,6 @@ def moves_to_hex(moves):
     output_string = "FF 55 " + str.format("{:x} ",len(moves))
     temp_string = ""
     for mo in moves:
-        print(mo)
         match(mo[0]):
             case 0: #translation
                 temp_string = mo[1] << 1 
@@ -252,5 +251,6 @@ for grid, start, end, orientation in grids:
     visualize_grid(grid, path, start, end)
     moves = calcuate_moves(path, orientation)
     hex_moves = moves_to_hex(moves)
-    print(hex_moves)
+    print("Rotation and Translation Moves: {0}".format(moves))
+    print("Hex Moves: {0}".format(hex_moves))
     i += 1
