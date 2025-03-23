@@ -2898,14 +2898,17 @@ void turnByDegrees(double degrees){
   int angleTolerance = 2;
   while((abs(targetAngle - angle) > angleTolerance) && ((millis() - startTime_ms) < timeout_ms))
   {
-    if (degrees > 0)
-    {
-      TurnLeft();
+    if (isPathClear()) {
+      if (degrees > 0)
+      {
+        TurnLeft();
+      }
+      else
+      {
+        TurnRight();
+      }
     }
-    else
-    {
-      TurnRight();
-    }
+    else Stop();
     updatePetersSensors();
     angle = gyro_ext.getAngleZ();
     delay(10);
@@ -3007,6 +3010,10 @@ void printEncoderValues(MeEncoderOnBoard *encoder, String name){
   Serial.println("");
 }  
 
+bool isPathClear(){
+  return ultrasonic_sensor.distanceCm() > 20;
+}
+
 /**
  * \par Function
  *    moveForwardPulses
@@ -3035,18 +3042,22 @@ void moveForwardPulses(long pulses) {
   double absRightDiff = abs(rearRightEncoder->getPulsePos() - rearRightTargetPulsePos);
   // Loop until the target position is reached within the tolerance
   while (absLeftDiff > tolerance && absRightDiff > tolerance) {
-    // Update the motor speed
-    if (absLeftDiff > tolerance) {
-      moveFrontLeftEncoderForward();
-      absLeftDiff = abs(frontLeftEncoder->getPulsePos() - frontLeftTargetPulsePos);
-    }
-    else frontLeftEncoder->setMotorPwm(0);
+    if (isPathClear()) {
+      // Update the motor speed
+      if (absLeftDiff > tolerance) {
+        moveFrontLeftEncoderForward();
+        absLeftDiff = abs(frontLeftEncoder->getPulsePos() - frontLeftTargetPulsePos);
+      }
+      else frontLeftEncoder->setMotorPwm(0);
 
-    if (absRightDiff > tolerance) {
-      moveRearRightEncoderForward();
-      absRightDiff = abs(rearRightEncoder->getPulsePos() - rearRightTargetPulsePos);
+      if (absRightDiff > tolerance) {
+        moveRearRightEncoderForward();
+        absRightDiff = abs(rearRightEncoder->getPulsePos() - rearRightTargetPulsePos);
+      }
+      else rearRightEncoder->setMotorPwm(0);
     }
-    else rearRightEncoder->setMotorPwm(0);
+    else Stop();
+    
 
     // Update the encoder state
     frontLeftEncoder->loop();
@@ -3142,28 +3153,9 @@ void loop()
     digitalWrite(13,blink_flag);
   }
 
-  // updatePetersSensors();
-
   if(megapi_mode == BLUETOOTH_MODE)
   {
     read_serial();
-    // if(ultrasonic_sensor.distanceCm() < 20)
-    // {
-    //   Stop();
-    // }
-    // else
-    // {
-    //   // Serial.println("Turning Left!\r\n");
-    //   // TurnLeft90();
-    //   // delay(5000);
-    //   // Serial.println("Turning Right!\r\n");
-    //   // TurnRight90();
-    //   // if (calculate){
-    //   //   calculate = false;
-    //   //   moveDistance(30);
-    //   // }
-    //   // else Stop();
-    // }
   }
   else if(megapi_mode == AUTOMATIC_OBSTACLE_AVOIDANCE_MODE)
   { 
