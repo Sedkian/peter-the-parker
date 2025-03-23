@@ -27,6 +27,8 @@ MeGasSensor GasSensor;
 MeTouchSensor touchSensor;
 Me4Button buttonSensor;
 MeEncoderOnBoard* encoders[4] = {new MeEncoderOnBoard(SLOT1), new MeEncoderOnBoard(SLOT2), new MeEncoderOnBoard(SLOT3), new MeEncoderOnBoard(SLOT4)};
+MeEncoderOnBoard *frontLeftEncoder = encoders[0];
+MeEncoderOnBoard *rearRightEncoder = encoders[1];
 MeLineFollower line(PORT_8);
 MeColorSensor *colorsensor  = NULL;
 
@@ -113,7 +115,6 @@ uint8_t serialRead;
 uint8_t buffer[52];
 uint8_t bufferBt1[52];
 uint8_t bufferBt2[52];
-unsigned char tableBt[128] = {0};
 double  lastTime = 0.0;
 double  currentTime = 0.0;
 double  CompAngleY, CompAngleX, GyroXangle;
@@ -126,6 +127,12 @@ double  angle_speed = 0.0;
 
 float angleServo = 90.0;
 float dt;
+
+const float wheelDiameter = 6.4; //cm
+const float wheelRadius = wheelDiameter / 2;
+const float wheelCircumference = wheelDiameter * PI;
+const int pulsesPerRevolution = 374; // also equals 360 degrees
+const float distancePerPulse = wheelCircumference / pulsesPerRevolution;
 
 long lasttime_angle = 0;
 long lasttime_speed = 0;
@@ -546,8 +553,8 @@ void readEEPROM(void)
  */
 void Forward(void)
 {
-  encoders[0]->setMotorPwm(-moveSpeed);
-  encoders[1]->setMotorPwm(moveSpeed);
+  frontLeftEncoder->setMotorPwm(-moveSpeed);
+  rearRightEncoder->setMotorPwm(moveSpeed);
 }
 
 /**
@@ -566,8 +573,8 @@ void Forward(void)
  */
 void Backward(void)
 {
-  encoders[0]->setMotorPwm(moveSpeed);
-  encoders[1]->setMotorPwm(-moveSpeed);
+  frontLeftEncoder->setMotorPwm(moveSpeed);
+  rearRightEncoder->setMotorPwm(-moveSpeed);
 }
 
 /**
@@ -586,8 +593,8 @@ void Backward(void)
  */
 void BackwardAndTurnLeft(void)
 {
-  encoders[0]->setMotorPwm(-moveSpeed/4);
-  encoders[1]->setMotorPwm(moveSpeed);
+  frontLeftEncoder->setMotorPwm(-moveSpeed/4);
+  rearRightEncoder->setMotorPwm(moveSpeed);
 }
 
 /**
@@ -606,8 +613,8 @@ void BackwardAndTurnLeft(void)
  */
 void BackwardAndTurnRight(void)
 {
-  encoders[0]->setMotorPwm(-moveSpeed);
-  encoders[1]->setMotorPwm(moveSpeed/4);
+  frontLeftEncoder->setMotorPwm(-moveSpeed);
+  rearRightEncoder->setMotorPwm(moveSpeed/4);
 }
 
 /**
@@ -626,8 +633,8 @@ void BackwardAndTurnRight(void)
  */
 void TurnLeft(void)
 {
-  encoders[0]->setMotorPwm(moveSpeed * 0.7);
-  encoders[1]->setMotorPwm(moveSpeed * 0.7);
+  frontLeftEncoder->setMotorPwm(moveSpeed * 0.7);
+  rearRightEncoder->setMotorPwm(moveSpeed * 0.7);
 }
 
 double getAnglePlusDegrees(double angle, double degrees)
@@ -719,8 +726,8 @@ void TurnRight90(void)
  */
 void TurnRight(void)
 {
-  encoders[0]->setMotorPwm(-moveSpeed * 0.7);
-  encoders[1]->setMotorPwm(-moveSpeed * 0.7);
+  frontLeftEncoder->setMotorPwm(-moveSpeed * 0.7);
+  rearRightEncoder->setMotorPwm(-moveSpeed * 0.7);
 }
 
 /**
@@ -739,8 +746,8 @@ void TurnRight(void)
  */
 void TurnLeft1(void)
 {
-  encoders[0]->setMotorPwm(moveSpeed);
-  encoders[1]->setMotorPwm(moveSpeed);
+  frontLeftEncoder->setMotorPwm(moveSpeed);
+  rearRightEncoder->setMotorPwm(moveSpeed);
 }
 
 /**
@@ -759,8 +766,8 @@ void TurnLeft1(void)
  */
 void TurnRight1(void)
 {
-  encoders[0]->setMotorPwm(-moveSpeed);
-  encoders[1]->setMotorPwm(-moveSpeed);
+  frontLeftEncoder->setMotorPwm(-moveSpeed);
+  rearRightEncoder->setMotorPwm(-moveSpeed);
 }
 
 /**
@@ -779,8 +786,8 @@ void TurnRight1(void)
  */
 void Stop(void)
 {
-  encoders[0]->setMotorPwm(0);
-  encoders[1]->setMotorPwm(0);
+  frontLeftEncoder->setMotorPwm(0);
+  rearRightEncoder->setMotorPwm(0);
 }
 
 /**
@@ -2811,8 +2818,8 @@ boolean read_serial(void)
 }
 
 void updatePetersSensors(void){
-  encoders[0]->loop();
-  encoders[1]->loop();
+  frontLeftEncoder->loop();
+  rearRightEncoder->loop();
   if(millis() - update_sensor > 10) {
     update_sensor = millis();
     gyro_ext.fast_update();
@@ -2820,6 +2827,90 @@ void updatePetersSensors(void){
     // PID_speed_compute();
   }
 }
+
+bool calculate = true;
+
+void moveDistance(float distance_cm){
+  float pulses = distance_cm / distancePerPulse;
+  moveForwardPulses(pulses);
+}
+
+void printEncoderValues(MeEncoderOnBoard *encoder, String name){
+  Serial.print(name);
+  Serial.print(" Cur Pos [deg]: ");
+  Serial.println(encoder->getCurPos());
+  Serial.print(name);
+  Serial.print(" Pulse Pos: ");
+  Serial.println(encoder->getPulsePos());
+  Serial.print(name);
+  Serial.print(" Cur PWM: ");
+  Serial.println(encoder->getCurPwm());
+  Serial.print(name);
+  Serial.print(" Cur Speed [RPM]: ");
+  Serial.println(encoder->getCurrentSpeed());
+  Serial.println("-----------------------------");
+  Serial.println("");
+}  
+
+void moveForwardPulses(long pulses) {
+  // Calculate the target pulse position
+  long frontLeftTargetPulsePos = frontLeftEncoder->getPulsePos() - pulses;
+  long rearRightTargetPulsePos = rearRightEncoder->getPulsePos() + pulses;
+
+  // Print Target Pulse Positions
+  // Serial.print("Front Left Target Pulse Pos: ");
+  // Serial.println(frontLeftTargetPulsePos);
+  // Serial.print("Rear Right Target Pulse Pos: ");
+  // Serial.println(rearRightTargetPulsePos);
+
+  // Set the motor speed
+  Forward();
+
+  // Print all about the encoder
+  // printEncoderValues(frontLeftEncoder, "Front Left Encoder");
+  // printEncoderValues(rearRightEncoder, "Rear Right Encoder");
+
+  // Define a tolerance for stopping
+  const long tolerance = 10; // Adjust this value as needed
+  double absLeftDiff = abs(frontLeftEncoder->getPulsePos() - frontLeftTargetPulsePos);
+  double absRightDiff = abs(rearRightEncoder->getPulsePos() - rearRightTargetPulsePos);
+  // Loop until the target position is reached within the tolerance
+  while (absLeftDiff > tolerance || absRightDiff > tolerance) {
+    // Print The current absolute difference
+    // Serial.print("Front Left Difference: ");
+    // Serial.println(absLeftDiff);
+    // Serial.print("Rear Right Difference: ");
+    // Serial.println(absRightDiff);
+    
+    // Print all about the encoder
+    // printEncoderValues(frontLeftEncoder, "Front Left Encoder");
+    // printEncoderValues(rearRightEncoder, "Rear Right Encoder");
+
+    // Update the motor speed
+    if (absLeftDiff > tolerance) {
+      frontLeftEncoder->setMotorPwm(-moveSpeed);
+      absLeftDiff = abs(frontLeftEncoder->getPulsePos() - frontLeftTargetPulsePos);
+    }
+    else frontLeftEncoder->setMotorPwm(0);
+
+    if (absRightDiff > tolerance) {
+      rearRightEncoder->setMotorPwm(moveSpeed);
+      absRightDiff = abs(rearRightEncoder->getPulsePos() - rearRightTargetPulsePos);
+    }
+    else rearRightEncoder->setMotorPwm(0);
+
+    // Update the encoder state
+    frontLeftEncoder->loop();
+    rearRightEncoder->loop();
+
+    // Add a small delay to prevent overwhelming the CPU
+    delay(10);
+  }
+
+  // Stop the motor
+  Stop();
+}
+
 
 void setup()
 {
@@ -2831,10 +2922,10 @@ void setup()
   while(!Serial3){}
   delay(5);
 
-  encoders[0]->reset(SLOT1);
-  encoders[1]->reset(SLOT2);
-  attachInterrupt(encoders[0]->getIntNum(), isr_process_encoder1, RISING);
-  attachInterrupt(encoders[1]->getIntNum(), isr_process_encoder2, RISING);
+  frontLeftEncoder->reset(SLOT1);
+  rearRightEncoder->reset(SLOT2);
+  attachInterrupt(frontLeftEncoder->getIntNum(), isr_process_encoder1, RISING);
+  attachInterrupt(rearRightEncoder->getIntNum(), isr_process_encoder2, RISING);
   delay(5);
 
   gyro_ext.begin();
@@ -2867,7 +2958,7 @@ void setup()
     encoders[i]->setRatio(46.67);
     encoders[i]->setPosPid(1.8, 0, 1.2);
     encoders[i]->setSpeedPid(PID_speed.P, PID_speed.I, PID_speed.D);
-    encoders[i]->setMotionMode(PID_MODE);
+    encoders[i]->setMotionMode(DIRECT_MODE);
   }
 
   readEEPROM();
@@ -2876,6 +2967,7 @@ void setup()
   Serial.println(mVersion);
   update_sensor = lasttime_speed = lasttime_angle = millis();
   blink_time = millis();
+  calculate = true;
 }
 
 /**
@@ -2903,6 +2995,9 @@ void loop()
 
   updatePetersSensors();
 
+  // printEncoderValues(frontLeftEncoder, "Front Left Encoder");
+  // printEncoderValues(rearRightEncoder, "Rear Right Encoder");
+
   if(megapi_mode == BLUETOOTH_MODE)
   {
     // read_serial();
@@ -2912,12 +3007,41 @@ void loop()
     }
     else
     {
-      Serial.println("Turning Left!\r\n");
-      TurnLeft90();
-      delay(5000);
-      Serial.println("Turning Right!\r\n");
-      TurnRight90();
-      delay(5000);
+      // Serial.println("Turning Left!\r\n");
+      // TurnLeft90();
+      // delay(5000);
+      // Serial.println("Turning Right!\r\n");
+      // TurnRight90();
+      // Print all about the encoder
+      // if (calculate){
+      //   calculate = false;
+
+      //   Serial.println("Starting Calibration!\r\n");
+
+      //   long targetDeg = 360;
+      //   frontLeftEncoder->move(targetDeg, moveSpeed/4);
+      //   delay(10);
+      //   frontLeftEncoder->loop();
+      //   delay(10);
+      //   double lastPrint = millis();
+      // printEncoderValues(frontLeftEncoder, "Front Left Encoder");
+      // printEncoderValues(rearRightEncoder, "Rear Right Encoder");
+      //   while (abs(frontLeftEncoder->distanceToGo()) > 10) {
+        // printEncoderValues(frontLeftEncoder, "Front Left Encoder");
+        // printEncoderValues(rearRightEncoder, "Rear Right Encoder");
+      //     frontLeftEncoder->loop();
+      //     delay(10);
+      //   }
+      //   frontLeftEncoder->setMotionMode(DIRECT_MODE);
+      //   Stop();
+      //   Serial.println("Calibration Ended.\r\n");
+      // }
+      // else Stop();
+      if (calculate){
+        calculate = false;
+        moveDistance(30);
+      }
+      else Stop();
     }
   }
   else if(megapi_mode == AUTOMATIC_OBSTACLE_AVOIDANCE_MODE)
