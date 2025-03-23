@@ -59,10 +59,10 @@ def a_star(grid, start, goal):
 def generate_random_grid(row, column, weight_lot = 1, weight_clear = 1):
     grid = []
     for i in range(row):
-        grid.append(random.choices([0,1], weights=[weight_lot,weight_clear], k=column))
+        grid.append(random.choices([0,1], weights=[weight_clear,weight_lot], k=column))
     return grid
 
-def visualize_grid(grid, path, start, end):
+def visualize_grid(grid, path = None, start = None, end = None):
     for i in range(len(grid[0])+1):
         if i == 0:
             print("+", end="")
@@ -191,7 +191,9 @@ def moves_to_hex(moves):
         output_string += str(temp_string) + " "
     return output_string
 
-
+def endpoints_open(grid, start, end):
+    grid[start[0]][start[1]] = 0
+    grid[end[0]][end[1]] = 0
 
 grid = [
     [1, 0, 1, 1, 0, 0],
@@ -223,35 +225,20 @@ grid3 = [
 s3 = (4,0)
 g3 = (4,4)
 
-grid4 = []
-r = 10 
-c = 10
-for i in range(r):
-    arr = []
-    for j in range(c):
-        arr.append(randint(0,1))
-    grid4.append(arr)
-s4 = (randint(0,r-1), randint(0,c-1))
-g4 = (randint(0,r-1), randint(0,c-1))
 
-grid4[s4[0]][s4[1]] = 0
-grid4[g4[0]][g4[1]] = 0
-
-
+#rid = generate_random_grid(10,10,1,3)
+visualize_grid(grid, None, None, None)
+endpoints_open(grid, s,g)
+visualize_grid(grid, None, s, g)
 # Find the path
-path = a_star(grid, s, g)
-
-if path:
-    print("Path found:", path)
-else:
-    print("No path found.")
+#path = a_star(grid, s, g)
 
 # Visualize the grid with the path
 #visualize_grid(grid, s, g, None)
 #visualize_grid(grid, s, g, path)
 
-moves = calcuate_moves(path)
+#moves = calcuate_moves(path)
 #gw = generate_random_grid(10,10, 5)
-visualize_grid(grid, None, None, None)
-visualize_grid(grid, path, s, g)
-bluetooth_input = moves_to_hex(moves)
+#visualize_grid(grid, None, None, None)
+#visualize_grid(grid, path, s, g)
+#bluetooth_input = moves_to_hex(moves)
