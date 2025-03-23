@@ -241,6 +241,12 @@ float RELAX_ANGLE = -1;                    //Natural balance angle,should be adj
 #define TRANSLATION_CMD 0
 #define ROTATION_CMD 1
 
+#define ROTATION_BY_90_DEGREES_COUNTERCLOCKWISE 0
+#define ROTATION_BY_90_DEGREES_CLOCKWISE 1
+#define ROTATION_BY_180_DEGREES 2
+
+#define MOVEMENT_BLOCK_SIZE_CM 30 // in cm
+
 typedef struct
 {
   double P, I, D;
@@ -2608,6 +2614,29 @@ void line_model(void)
   }
 }
 
+void translateNBlocks(uint8_t nBlocks){
+  for(uint8_t i = 0; i < nBlocks; i++){
+    moveDistance(nBlocks * MOVEMENT_BLOCK_SIZE_CM);
+  }
+}
+
+void rotateByCase(uint8_t caseNum){
+  switch(caseNum){
+    case ROTATION_BY_90_DEGREES_COUNTERCLOCKWISE:
+      TurnLeft90();
+      break;
+    case ROTATION_BY_90_DEGREES_CLOCKWISE:
+      TurnRight90();
+      break;
+    case ROTATION_BY_180_DEGREES:
+      TurnRight90();
+      TurnRight90();
+      break;
+    default:
+      break;
+  }
+}
+
 void executePath(void){
   isStart = false;
   uint8_t dataLen = readBuffer(2);
@@ -2632,13 +2661,16 @@ void executePath(void){
           Serial.print("Translation by ");
           Serial.print(actionValue);
           Serial.println(" blocks");
-          writeEnd();
+          translateNBlocks(actionValue);
+          // writeEnd();
+          callOK();
         }
         break;
       case ROTATION_CMD:
         {
           Serial.print("Rotation case ");
           Serial.println(actionValue);
+          rotateByCase(actionValue);
           callOK();
         }
         break;
@@ -2653,6 +2685,7 @@ void executePath(void){
 
 uint8_t buf[64];
 uint8_t bufindex;
+unsigned long print_time = 0;
 
 /**
  * \par Function
@@ -2671,20 +2704,17 @@ uint8_t bufindex;
 boolean read_serial(void)
 {
   boolean result = false;
-  unsigned long print_time = 0;
   readSerial();
   while(isAvailable)
   {
     uint8_t currentByte = serialRead & 0xff;
-    Serial.print(currentByte,HEX);
-    Serial.println("");
+    Serial.print("Received Byte: ");
+    Serial.println(currentByte,HEX);
     result = true;
     if((currentByte == bluetoothHeadB) && (isStart == false))
     {
-      Serial.println("A");
       if(prevc == bluetoothHeadA)
       {
-        Serial.println("B");
         index=1;
         isStart = true;
       }
@@ -2692,8 +2722,6 @@ boolean read_serial(void)
     else
     {
       prevc = currentByte;
-      Serial.print("Last Byte: ");
-      Serial.println(prevc,HEX);
       if(isStart)
       {
         if(index == 2)
@@ -2713,9 +2741,6 @@ boolean read_serial(void)
       index=0; 
       isStart=false;
     }
-    // Print the value of index
-    Serial.print("Index: ");
-    Serial.println(index);
     readSerial();
   }
 
@@ -2725,14 +2750,6 @@ boolean read_serial(void)
     Serial.println("Execute Path");
     executePath(); 
   }
-  // else if (millis() - print_time > 5000)
-  // {
-  //   print_time = millis();
-  //   Serial.print("DataLen: ");
-  //   Serial.println(dataLen);
-  //   Serial.print("Index: ");
-  //   Serial.println(index);
-  // }
 
   index = 0;
   return result;
