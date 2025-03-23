@@ -149,6 +149,8 @@ boolean start_flag = false;
 boolean move_flag = false;
 boolean blink_flag = false;
 
+bool calculate = true;
+
 String mVersion = "0e.01.018";
 //////////////////////////////////////////////////////////////////////////////////////
 float RELAX_ANGLE = -1;                    //Natural balance angle,should be adjustment according to your own car
@@ -539,46 +541,6 @@ void readEEPROM(void)
 
 /**
  * \par Function
- *    Forward
- * \par Description
- *    This function use to control the car kit go forward.
- * \param[in]
- *    None
- * \par Output
- *    None
- * \return
- *    None
- * \par Others
- *    None
- */
-void Forward(void)
-{
-  frontLeftEncoder->setMotorPwm(-moveSpeed);
-  rearRightEncoder->setMotorPwm(moveSpeed);
-}
-
-/**
- * \par Function
- *    Backward
- * \par Description
- *    This function use to control the car kit go backward.
- * \param[in]
- *    None
- * \par Output
- *    None
- * \return
- *    None
- * \par Others
- *    None
- */
-void Backward(void)
-{
-  frontLeftEncoder->setMotorPwm(moveSpeed);
-  rearRightEncoder->setMotorPwm(-moveSpeed);
-}
-
-/**
- * \par Function
  *    BackwardAndTurnLeft
  * \par Description
  *    This function use to control the car kit go backward and turn left.
@@ -615,119 +577,6 @@ void BackwardAndTurnRight(void)
 {
   frontLeftEncoder->setMotorPwm(-moveSpeed);
   rearRightEncoder->setMotorPwm(moveSpeed/4);
-}
-
-/**
- * \par Function
- *    TurnLeft
- * \par Description
- *    This function use to control the car kit go backward and turn left.
- * \param[in]
- *    None
- * \par Output
- *    None
- * \return
- *    None
- * \par Others
- *    None
- */
-void TurnLeft(void)
-{
-  frontLeftEncoder->setMotorPwm(moveSpeed * 0.7);
-  rearRightEncoder->setMotorPwm(moveSpeed * 0.7);
-}
-
-double getAnglePlusDegrees(double angle, double degrees)
-{
-  double targetAngle = angle + degrees;
-  if(targetAngle > 180)
-  {
-    targetAngle -= 360;
-  }
-  else if(targetAngle < -180)
-  {
-    targetAngle += 360;
-  }
-  return targetAngle;
-}
-
-double getAverageOfNZAngles(int N)
-{
-  double angle = 0;
-  for(int i = 0; i < N; i++)
-  {
-    gyro_ext.update();
-    angle += gyro_ext.getAngleZ();
-  }
-  return angle / N;
-}
-
-void TurnLeft90(void)
-{
-  // Read 5 reading of the current z angle of the gyro and average them
-  double angle = gyro_ext.getAngleZ();
-  // Calculate the angle to turn to based on the current angle (-180, 180)
-  double targetAngle = getAnglePlusDegrees(angle, 90);
-
-  // Wait until the angle is reached or timeout
-  unsigned long startTime_ms = millis();
-  unsigned long timeout_ms = 5000;
-  int angleTolerance = 2;
-  while((abs(targetAngle - angle) > angleTolerance) && ((millis() - startTime_ms) < timeout_ms))
-  {
-    // Set the speed to turn at
-    TurnLeft();
-    updatePetersSensors();
-    angle = gyro_ext.getAngleZ();
-    delay(10);
-  }
-
-  // Stop the motors
-  Stop();
-}
-
-void TurnRight90(void)
-{
-  // Read 5 reading of the current z angle of the gyro and average them
-  double angle = gyro_ext.getAngleZ();
-  // Calculate the angle to turn to based on the current angle (-180, 180)
-  double targetAngle = getAnglePlusDegrees(angle, -90);
-
-  // Wait until the angle is reached or timeout
-  unsigned long startTime_ms = millis();
-  unsigned long timeout_ms = 5000;
-  int angleTolerance = 2;
-  while((abs(targetAngle - angle) > angleTolerance) && ((millis() - startTime_ms) < timeout_ms))
-  {
-    // Set the speed to turn at
-    TurnRight();
-    updatePetersSensors();
-    angle = gyro_ext.getAngleZ();
-    delay(10);
-  }
-
-  // Stop the motors
-  Stop();
-}
-
-/**
- * \par Function
- *    TurnRight
- * \par Description
- *    This function use to control the car kit go backward and turn right.
- * \param[in]
- *    None
- * \par Output
- *    None
- * \return
- *    None
- * \par Others
- *    None
- */
-void TurnRight(void)
-{
-  frontLeftEncoder->setMotorPwm(-moveSpeed * 0.7);
-  rearRightEncoder->setMotorPwm(-moveSpeed * 0.7);
 }
 
 /**
@@ -2828,8 +2677,232 @@ void updatePetersSensors(void){
   }
 }
 
-bool calculate = true;
+/* Start our Firmware Code */
+/**
+ * \par Function
+ *    Forward
+ * \par Description
+ *    This function use to control the car kit go forward.
+ * \param[in]
+ *    None
+ * \par Output
+ *    None
+ * \return
+ *    None
+ * \par Others
+ *    None
+ */
+void Forward(void)
+{
+  frontLeftEncoder->setMotorPwm(-moveSpeed);
+  rearRightEncoder->setMotorPwm(moveSpeed);
+}
 
+/**
+ * \par Function
+ *    Backward
+ * \par Description
+ *    This function use to control the car kit go backward.
+ * \param[in]
+ *    None
+ * \par Output
+ *    None
+ * \return
+ *    None
+ * \par Others
+ *    None
+ */
+void Backward(void)
+{
+  frontLeftEncoder->setMotorPwm(moveSpeed);
+  rearRightEncoder->setMotorPwm(-moveSpeed);
+}
+
+/**
+ * \par Function
+ *    TurnLeft
+ * \par Description
+ *    This function use to control the car kit go backward and turn left.
+ * \param[in]
+ *    None
+ * \par Output
+ *    None
+ * \return
+ *    None
+ * \par Others
+ *    None
+ */
+void TurnLeft(void)
+{
+  frontLeftEncoder->setMotorPwm(moveSpeed * 0.7);
+  rearRightEncoder->setMotorPwm(moveSpeed * 0.7);
+}
+
+/**
+ * \par Function
+ *    getAnglePlusDegrees
+ * \par Description
+ *   This function use to calculate the target angle based on the current angle and the degrees to turn.
+ * \param[in]
+ *   angle - The current angle of the gyro
+ * \param[in]
+ *  degrees - The degrees to turn
+ * \par Output
+ *   None
+ * \return
+ *  The target angle
+ * \par Others
+ *  None
+ */
+double getAnglePlusDegrees(double angle, double degrees)
+{
+  double targetAngle = angle + degrees;
+  if(targetAngle > 180)
+  {
+    targetAngle -= 360;
+  }
+  else if(targetAngle < -180)
+  {
+    targetAngle += 360;
+  }
+  return targetAngle;
+}
+
+/**
+ * \par Function
+ *    getAverageOfNZAngles
+ * \par Description
+ *   This function use to get the average of N angles along the z-axis.
+ * \param[in]
+ *   N - The number of angles to average
+ * \par Output
+ *   None
+ * \return
+ *  The average of the N angles
+ * \par Others
+ *  None
+ */
+double getAverageOfNZAngles(int N)
+{
+  double angle = 0;
+  for(int i = 0; i < N; i++)
+  {
+    gyro_ext.update();
+    angle += gyro_ext.getAngleZ();
+  }
+  return angle / N;
+}
+
+/**
+ * \par Function
+ *    TurnLeft90
+ * \par Description
+ *    This function use is to control the car kit to turn left 90 degrees.
+ * \param[in]
+ *    None
+ * \par Output
+ *    None
+ * \return
+ *    None
+ * \par Others
+ *    None
+ */
+void TurnLeft90(void)
+{
+  // Read 5 reading of the current z angle of the gyro and average them
+  double angle = gyro_ext.getAngleZ();
+  // Calculate the angle to turn to based on the current angle (-180, 180)
+  double targetAngle = getAnglePlusDegrees(angle, 90);
+
+  // Wait until the angle is reached or timeout
+  unsigned long startTime_ms = millis();
+  unsigned long timeout_ms = 5000;
+  int angleTolerance = 2;
+  while((abs(targetAngle - angle) > angleTolerance) && ((millis() - startTime_ms) < timeout_ms))
+  {
+    // Set the speed to turn at
+    TurnLeft();
+    updatePetersSensors();
+    angle = gyro_ext.getAngleZ();
+    delay(10);
+  }
+
+  // Stop the motors
+  Stop();
+}
+
+/**
+ * \par Function
+ *    TurnRight90
+ * \par Description
+ *    This function use is to control the car kit to turn right 90 degrees.
+ * \param[in]
+ *    None
+ * \par Output
+ *    None
+ * \return
+ *    None
+ * \par Others
+ *    None
+ */
+void TurnRight90(void)
+{
+  // Read 5 reading of the current z angle of the gyro and average them
+  double angle = gyro_ext.getAngleZ();
+  // Calculate the angle to turn to based on the current angle (-180, 180)
+  double targetAngle = getAnglePlusDegrees(angle, -90);
+
+  // Wait until the angle is reached or timeout
+  unsigned long startTime_ms = millis();
+  unsigned long timeout_ms = 5000;
+  int angleTolerance = 2;
+  while((abs(targetAngle - angle) > angleTolerance) && ((millis() - startTime_ms) < timeout_ms))
+  {
+    // Set the speed to turn at
+    TurnRight();
+    updatePetersSensors();
+    angle = gyro_ext.getAngleZ();
+    delay(10);
+  }
+
+  // Stop the motors
+  Stop();
+}
+
+/**
+ * \par Function
+ *    TurnRight
+ * \par Description
+ *    This function use to control the car kit go backward and turn right.
+ * \param[in]
+ *    None
+ * \par Output
+ *    None
+ * \return
+ *    None
+ * \par Others
+ *    None
+ */
+void TurnRight(void)
+{
+  frontLeftEncoder->setMotorPwm(-moveSpeed * 0.7);
+  rearRightEncoder->setMotorPwm(-moveSpeed * 0.7);
+}
+
+/**
+ * \par Function
+ *    moveDistance
+ * \par Description
+ *   This function use to move the car kit a certain distance in centimeters.
+ * \param[in]
+ *  distance_cm - The distance to move in centimeters
+ * \par Output
+ *  None
+ * \return
+ * None
+ * \par Others
+ * None
+ */
 void moveDistance(float distance_cm){
   float pulses = distance_cm / distancePerPulse;
   moveForwardPulses(pulses);
@@ -2852,23 +2925,27 @@ void printEncoderValues(MeEncoderOnBoard *encoder, String name){
   Serial.println("");
 }  
 
+/**
+ * \par Function
+ *    moveForwardPulses
+ * \par Description
+ *   This function use to move the car kit a certain number of pulses.
+ * \param[in]
+ *  pulses - The number of pulses to move
+ * \par Output
+ *  None
+ * \return
+ * None
+ * \par Others
+ * None
+ */
 void moveForwardPulses(long pulses) {
   // Calculate the target pulse position
   long frontLeftTargetPulsePos = frontLeftEncoder->getPulsePos() - pulses;
   long rearRightTargetPulsePos = rearRightEncoder->getPulsePos() + pulses;
 
-  // Print Target Pulse Positions
-  // Serial.print("Front Left Target Pulse Pos: ");
-  // Serial.println(frontLeftTargetPulsePos);
-  // Serial.print("Rear Right Target Pulse Pos: ");
-  // Serial.println(rearRightTargetPulsePos);
-
   // Set the motor speed
   Forward();
-
-  // Print all about the encoder
-  // printEncoderValues(frontLeftEncoder, "Front Left Encoder");
-  // printEncoderValues(rearRightEncoder, "Rear Right Encoder");
 
   // Define a tolerance for stopping
   const long tolerance = 10; // Adjust this value as needed
@@ -2876,16 +2953,6 @@ void moveForwardPulses(long pulses) {
   double absRightDiff = abs(rearRightEncoder->getPulsePos() - rearRightTargetPulsePos);
   // Loop until the target position is reached within the tolerance
   while (absLeftDiff > tolerance || absRightDiff > tolerance) {
-    // Print The current absolute difference
-    // Serial.print("Front Left Difference: ");
-    // Serial.println(absLeftDiff);
-    // Serial.print("Rear Right Difference: ");
-    // Serial.println(absRightDiff);
-    
-    // Print all about the encoder
-    // printEncoderValues(frontLeftEncoder, "Front Left Encoder");
-    // printEncoderValues(rearRightEncoder, "Rear Right Encoder");
-
     // Update the motor speed
     if (absLeftDiff > tolerance) {
       frontLeftEncoder->setMotorPwm(-moveSpeed);
@@ -2910,7 +2977,6 @@ void moveForwardPulses(long pulses) {
   // Stop the motor
   Stop();
 }
-
 
 void setup()
 {
@@ -2962,7 +3028,7 @@ void setup()
   }
 
   readEEPROM();
-  //megapi_mode = BALANCED_MODE;
+
   Serial.print("Version: ");
   Serial.println(mVersion);
   update_sensor = lasttime_speed = lasttime_angle = millis();
@@ -2995,9 +3061,6 @@ void loop()
 
   updatePetersSensors();
 
-  // printEncoderValues(frontLeftEncoder, "Front Left Encoder");
-  // printEncoderValues(rearRightEncoder, "Rear Right Encoder");
-
   if(megapi_mode == BLUETOOTH_MODE)
   {
     // read_serial();
@@ -3012,31 +3075,6 @@ void loop()
       // delay(5000);
       // Serial.println("Turning Right!\r\n");
       // TurnRight90();
-      // Print all about the encoder
-      // if (calculate){
-      //   calculate = false;
-
-      //   Serial.println("Starting Calibration!\r\n");
-
-      //   long targetDeg = 360;
-      //   frontLeftEncoder->move(targetDeg, moveSpeed/4);
-      //   delay(10);
-      //   frontLeftEncoder->loop();
-      //   delay(10);
-      //   double lastPrint = millis();
-      // printEncoderValues(frontLeftEncoder, "Front Left Encoder");
-      // printEncoderValues(rearRightEncoder, "Rear Right Encoder");
-      //   while (abs(frontLeftEncoder->distanceToGo()) > 10) {
-        // printEncoderValues(frontLeftEncoder, "Front Left Encoder");
-        // printEncoderValues(rearRightEncoder, "Rear Right Encoder");
-      //     frontLeftEncoder->loop();
-      //     delay(10);
-      //   }
-      //   frontLeftEncoder->setMotionMode(DIRECT_MODE);
-      //   Stop();
-      //   Serial.println("Calibration Ended.\r\n");
-      // }
-      // else Stop();
       if (calculate){
         calculate = false;
         moveDistance(30);
@@ -3058,28 +3096,10 @@ void loop()
     line_model();
   }
 
-  //Example on how to use the DC Motors
-  // TurnLeft();
-  // delay(1000);
-  // Stop();
-  // delay(1000);
-  // TurnRight();
-  // delay(1000);
-  // Stop();
-
   //Example on how to use the ultrasonic sensor
   // Serial.print("Distance : ");
   // Serial.print(ultrasonic_sensor.distanceCm() );
   // Serial.println(" cm");
   // delay(100); /* the minimal measure interval is 100 milliseconds */
-
-  //Example on how to use the Gyro sensor
-  // gyro_ext.update();
-  // Serial.read();
-  // Serial.print("X:");
-  // Serial.print(gyro_ext.getAngleX() );
-  // Serial.print(" Y:");
-  // Serial.print(gyro_ext.getAngleY() );
-  // Serial.print(" Z:");
-  // Serial.println(gyro_ext.getAngleZ() );
 }
+/* End our Firmware Code */
