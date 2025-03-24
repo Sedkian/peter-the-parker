@@ -27,8 +27,6 @@ MeGasSensor GasSensor;
 MeTouchSensor touchSensor;
 Me4Button buttonSensor;
 MeEncoderOnBoard* encoders[4] = {new MeEncoderOnBoard(SLOT1), new MeEncoderOnBoard(SLOT2), new MeEncoderOnBoard(SLOT3), new MeEncoderOnBoard(SLOT4)};
-MeEncoderOnBoard *frontLeftEncoder = encoders[0];
-MeEncoderOnBoard *rearRightEncoder = encoders[1];
 MeLineFollower line(PORT_8);
 MeColorSensor *colorsensor  = NULL;
 
@@ -74,7 +72,7 @@ MeModule modules[12];
 int16_t len = 52;
 int16_t servo_pins[12]={0,0,0,0,0,0,0,0,0,0,0,0};
 //Just for MegaPi
-int16_t moveSpeed = 180;
+int16_t moveSpeed = 200;
 int16_t turnSpeed = 180;
 int16_t minSpeed = 45;
 int16_t factor = 23;
@@ -128,12 +126,6 @@ double  angle_speed = 0.0;
 float angleServo = 90.0;
 float dt;
 
-const float wheelDiameter = 6.4; //cm
-const float wheelRadius = wheelDiameter / 2;
-const float wheelCircumference = wheelDiameter * PI;
-const int pulsesPerRevolution = 374; // also equals 360 degrees
-const float distancePerPulse = wheelCircumference / pulsesPerRevolution;
-
 long lasttime_angle = 0;
 long lasttime_speed = 0;
 long update_sensor = 0;
@@ -148,8 +140,6 @@ boolean rightflag;
 boolean start_flag = false;
 boolean move_flag = false;
 boolean blink_flag = false;
-
-bool calculate = true;
 
 String mVersion = "0e.01.018";
 //////////////////////////////////////////////////////////////////////////////////////
@@ -234,13 +224,44 @@ float RELAX_ANGLE = -1;                    //Natural balance angle,should be adj
 #define RESET 4
 #define START 5
 
+/* Start of our Firmware Variables*/
+#define TRANSLATION_CMD 0
+#define ROTATION_CMD 1
+
+#define ROTATION_BY_90_DEGREES_COUNTERCLOCKWISE 0
+#define ROTATION_BY_90_DEGREES_CLOCKWISE 1
+#define ROTATION_BY_180_DEGREES 2
+
+#define MOVEMENT_BLOCK_SIZE_CM 30 // in cm
+
+MeEncoderOnBoard *frontLeftEncoder = encoders[0];
+MeEncoderOnBoard *rearRightEncoder = encoders[1];
+
+int16_t frontLeftEncoderSpeed = -0.9 * moveSpeed;
+int16_t rearRightEncoderSpeed = moveSpeed;
+
+uint8_t bluetoothHeadA = 0xff;
+uint8_t bluetoothHeadB = 0x55;
+uint8_t bluetoothEnd = 0xff;
+
+const float wheelDiameter = 6.4; //cm
+const float wheelRadius = wheelDiameter / 2;
+const float wheelCircumference = wheelDiameter * PI;
+const int pulsesPerRevolution = 374; // also equals 360 degrees
+const float distancePerPulse = wheelCircumference / pulsesPerRevolution;
+
+uint8_t buf[64];
+uint8_t bufindex;
+unsigned long print_time = 0;
+/* End of our Firmware Variables*/
+
 typedef struct
 {
   double P, I, D;
   double Setpoint, Output, Integral,differential, last_error;
 } PID;
 
-PID  PID_angle, PID_speed, PID_turn;
+PID  PID_angle, PID_speed, PID_turn, PID_pos;
 
 /**
  * \par Function
@@ -2601,8 +2622,117 @@ void line_model(void)
   }
 }
 
-uint8_t buf[64];
-uint8_t bufindex;
+/* Start our Firmware Code */
+/**
+ * \par Function
+ *   translateNBlocks
+ * \par Description
+ *  The function used to move the car kit forward n blocks
+ *  where each block is of MOVEMENT_BLOCK_SIZE_CM cm.
+ * \param[in]
+ *   nBlocks - The number of blocks to move
+ * \par Output
+ *  None
+ * \return
+ *  None
+ * \par Others
+ * None
+ */
+void translateNBlocks(uint8_t nBlocks){
+  moveDistance(nBlocks * MOVEMENT_BLOCK_SIZE_CM);
+}
+
+/**
+ * \par Function
+ *    rotateByCase
+ * \par Description
+ *    The function used to rotate the car kit by a certain number of degrees
+ *    depending on the received case number.
+ * \param[in]
+ *    caseNum - The number of degrees to rotate by
+ * \par Output
+ *    None
+ * \return
+ *    None
+ * \par Others
+ *    None
+ */
+void rotateByCase(uint8_t caseNum){
+  switch(caseNum){
+    case ROTATION_BY_90_DEGREES_COUNTERCLOCKWISE:
+      TurnLeft90();
+      break;
+    case ROTATION_BY_90_DEGREES_CLOCKWISE:
+      TurnRight90();
+      break;
+    case ROTATION_BY_180_DEGREES:
+      TurnRight90();
+      TurnRight90();
+      break;
+    default:
+      break;
+  }
+}
+
+/**
+ * \par Function
+ *    executePath
+ * \par Description
+ *    The function used to execute the path commands received from the phone app.
+ * \param[in]
+ *    None
+ * \par Output
+ *    None
+ * \return
+ *    None
+ * \par Others
+ *    None
+ */
+void executePath(void){
+  isStart = false;
+  uint8_t dataLen = readBuffer(2);
+  uint8_t currIdx = 3;
+  while ((currIdx-3) < dataLen)
+  {
+    uint8_t commandByte = readBuffer(currIdx);
+    Serial.print("Command Byte: ");
+    Serial.println(commandByte, HEX);
+    uint8_t actionType = commandByte & 0x01;
+    uint8_t actionValue = (commandByte >> 1) & 0x7F;
+    currIdx++;
+
+    Serial.print("Action Type: ");
+    Serial.println(actionType, HEX);
+
+    switch(actionType)
+    {
+      case TRANSLATION_CMD:
+        {
+          Serial.print("Translation by ");
+          Serial.print(actionValue);
+          Serial.println(" blocks");
+          translateNBlocks(actionValue);
+          // writeEnd();
+          callOK();
+        }
+        break;
+      case ROTATION_CMD:
+        {
+          Serial.print("Rotation case ");
+          Serial.println(actionValue);
+          rotateByCase(actionValue);
+          callOK();
+        }
+        break;
+      default:
+        {
+          Serial.println("Invalid Command");
+        }
+        break;
+    }
+    delay(500);
+  }
+}
 
 /**
  * \par Function
@@ -2622,13 +2752,15 @@ boolean read_serial(void)
 {
   boolean result = false;
   readSerial();
-  if(isAvailable)
+  while(isAvailable)
   {
-    uint8_t c = serialRead & 0xff;
+    uint8_t currentByte = serialRead & 0xff;
+    Serial.print("Received Byte: ");
+    Serial.println(currentByte,HEX);
     result = true;
-    if((c == 0x55) && (isStart == false))
+    if((currentByte == bluetoothHeadB) && (isStart == false))
     {
-      if(prevc == 0xff)
+      if(prevc == bluetoothHeadA)
       {
         index=1;
         isStart = true;
@@ -2636,18 +2768,18 @@ boolean read_serial(void)
     }
     else
     {
-      prevc = c;
+      prevc = currentByte;
       if(isStart)
       {
         if(index == 2)
         {
-          dataLen = c; 
+          dataLen = currentByte; 
         }
         else if(index > 2)
         {
           dataLen--;
         }
-        writeBuffer(index,c);
+        writeBuffer(index,currentByte);
       }
     }
     index++;
@@ -2656,28 +2788,51 @@ boolean read_serial(void)
       index=0; 
       isStart=false;
     }
-    if(isStart && (dataLen == 0) && (index > 3))
-    { 
-      isStart = false;
-      parseData(); 
-      index=0;
-    }
-    return result;
+    readSerial();
   }
+
+  if(isStart && (dataLen == 0) && (index > 3))
+  { 
+    isStart = false;
+    Serial.println("Execute Path");
+    executePath(); 
+  }
+
+  index = 0;
+  return result;
 }
 
+/**
+ * \par Function
+ *    updatePetersSensors
+ * \par Description
+ *   The function used to update the sensors on the car kit and loop the encoders.
+ * \param[in]
+ *   None
+ * \par Output
+ *  None
+ * \return
+ * None
+ * \par Others
+ * None
+ */
 void updatePetersSensors(void){
   frontLeftEncoder->loop();
   rearRightEncoder->loop();
   if(millis() - update_sensor > 10) {
     update_sensor = millis();
     gyro_ext.fast_update();
-    // PID_angle_compute();
-    // PID_speed_compute();
   }
 }
 
-/* Start our Firmware Code */
+void moveFrontLeftEncoderForward(void){
+  frontLeftEncoder->setMotorPwm(frontLeftEncoderSpeed);
+}
+
+void moveRearRightEncoderForward(void){
+  rearRightEncoder->setMotorPwm(rearRightEncoderSpeed);
+}
+
 /**
  * \par Function
  *    Forward
@@ -2694,8 +2849,8 @@ void updatePetersSensors(void){
  */
 void Forward(void)
 {
-  frontLeftEncoder->setMotorPwm(-moveSpeed);
-  rearRightEncoder->setMotorPwm(moveSpeed);
+  moveFrontLeftEncoderForward();
+  moveRearRightEncoderForward();
 }
 
 /**
@@ -2734,8 +2889,8 @@ void Backward(void)
  */
 void TurnLeft(void)
 {
-  frontLeftEncoder->setMotorPwm(moveSpeed * 0.7);
-  rearRightEncoder->setMotorPwm(moveSpeed * 0.7);
+  frontLeftEncoder->setMotorPwm(-frontLeftEncoderSpeed * 0.7);
+  rearRightEncoder->setMotorPwm(rearRightEncoderSpeed * 0.7);
 }
 
 /**
@@ -2789,8 +2944,50 @@ double getAverageOfNZAngles(int N)
   {
     gyro_ext.update();
     angle += gyro_ext.getAngleZ();
+    delay(100);
   }
   return angle / N;
+}
+
+/**
+ * \par Function
+ *    turnByDegrees
+ * \par Description
+ *  This function use is to control the car kit to turn a certain number of degrees.
+ * \param[in]
+ *  degrees - The number of degrees to turn
+ * \par Output
+ * None
+ * \return
+ * None
+ * \par Others
+ * None
+ */
+void turnByDegrees(double degrees){
+  double angle = getAverageOfNZAngles(5);
+  double targetAngle = getAnglePlusDegrees(angle, degrees);
+
+  unsigned long startTime_ms = millis();
+  unsigned long timeout_ms = 5000;
+  int angleTolerance = 2;
+  while((abs(targetAngle - angle) > angleTolerance) && ((millis() - startTime_ms) < timeout_ms))
+  {
+    if (isPathClear()) {
+      if (degrees > 0)
+      {
+        TurnLeft();
+      }
+      else
+      {
+        TurnRight();
+      }
+    }
+    else Stop();
+    updatePetersSensors();
+    angle = gyro_ext.getAngleZ();
+    delay(10);
+  }
+  Stop();
 }
 
 /**
@@ -2809,26 +3006,7 @@ double getAverageOfNZAngles(int N)
  */
 void TurnLeft90(void)
 {
-  // Read 5 reading of the current z angle of the gyro and average them
-  double angle = gyro_ext.getAngleZ();
-  // Calculate the angle to turn to based on the current angle (-180, 180)
-  double targetAngle = getAnglePlusDegrees(angle, 90);
-
-  // Wait until the angle is reached or timeout
-  unsigned long startTime_ms = millis();
-  unsigned long timeout_ms = 5000;
-  int angleTolerance = 2;
-  while((abs(targetAngle - angle) > angleTolerance) && ((millis() - startTime_ms) < timeout_ms))
-  {
-    // Set the speed to turn at
-    TurnLeft();
-    updatePetersSensors();
-    angle = gyro_ext.getAngleZ();
-    delay(10);
-  }
-
-  // Stop the motors
-  Stop();
+  turnByDegrees(90);
 }
 
 /**
@@ -2847,26 +3025,7 @@ void TurnLeft90(void)
  */
 void TurnRight90(void)
 {
-  // Read 5 reading of the current z angle of the gyro and average them
-  double angle = gyro_ext.getAngleZ();
-  // Calculate the angle to turn to based on the current angle (-180, 180)
-  double targetAngle = getAnglePlusDegrees(angle, -90);
-
-  // Wait until the angle is reached or timeout
-  unsigned long startTime_ms = millis();
-  unsigned long timeout_ms = 5000;
-  int angleTolerance = 2;
-  while((abs(targetAngle - angle) > angleTolerance) && ((millis() - startTime_ms) < timeout_ms))
-  {
-    // Set the speed to turn at
-    TurnRight();
-    updatePetersSensors();
-    angle = gyro_ext.getAngleZ();
-    delay(10);
-  }
-
-  // Stop the motors
-  Stop();
+  turnByDegrees(-90);
 }
 
 /**
@@ -2885,8 +3044,8 @@ void TurnRight90(void)
  */
 void TurnRight(void)
 {
-  frontLeftEncoder->setMotorPwm(-moveSpeed * 0.7);
-  rearRightEncoder->setMotorPwm(-moveSpeed * 0.7);
+  frontLeftEncoder->setMotorPwm(frontLeftEncoderSpeed * 0.7);
+  rearRightEncoder->setMotorPwm(-rearRightEncoderSpeed * 0.7);
 }
 
 /**
@@ -2927,6 +3086,25 @@ void printEncoderValues(MeEncoderOnBoard *encoder, String name){
 
 /**
  * \par Function
+ *    isPathClear
+ * \par Description
+ *    The function used to check if the path is clear by checking
+ *    if there is a clearance of 20 cm using the ultrasonic sensor.
+ * \param[in]
+ *    None
+ * \par Output
+ *    None
+ * \return
+ *    Is the path clear
+ * \par Others
+ *    None
+ */
+bool isPathClear(){
+  return ultrasonic_sensor.distanceCm() > 20;
+}
+
+/**
+ * \par Function
  *    moveForwardPulses
  * \par Description
  *   This function use to move the car kit a certain number of pulses.
@@ -2952,19 +3130,23 @@ void moveForwardPulses(long pulses) {
   double absLeftDiff = abs(frontLeftEncoder->getPulsePos() - frontLeftTargetPulsePos);
   double absRightDiff = abs(rearRightEncoder->getPulsePos() - rearRightTargetPulsePos);
   // Loop until the target position is reached within the tolerance
-  while (absLeftDiff > tolerance || absRightDiff > tolerance) {
-    // Update the motor speed
-    if (absLeftDiff > tolerance) {
-      frontLeftEncoder->setMotorPwm(-moveSpeed);
-      absLeftDiff = abs(frontLeftEncoder->getPulsePos() - frontLeftTargetPulsePos);
-    }
-    else frontLeftEncoder->setMotorPwm(0);
+  while (absLeftDiff > tolerance && absRightDiff > tolerance) {
+    if (isPathClear()) {
+      // Update the motor speed
+      if (absLeftDiff > tolerance) {
+        moveFrontLeftEncoderForward();
+        absLeftDiff = abs(frontLeftEncoder->getPulsePos() - frontLeftTargetPulsePos);
+      }
+      else frontLeftEncoder->setMotorPwm(0);
 
-    if (absRightDiff > tolerance) {
-      rearRightEncoder->setMotorPwm(moveSpeed);
-      absRightDiff = abs(rearRightEncoder->getPulsePos() - rearRightTargetPulsePos);
+      if (absRightDiff > tolerance) {
+        moveRearRightEncoderForward();
+        absRightDiff = abs(rearRightEncoder->getPulsePos() - rearRightTargetPulsePos);
+      }
+      else rearRightEncoder->setMotorPwm(0);
     }
-    else rearRightEncoder->setMotorPwm(0);
+    else Stop();
+    
 
     // Update the encoder state
     frontLeftEncoder->loop();
@@ -2972,6 +3154,7 @@ void moveForwardPulses(long pulses) {
 
     // Add a small delay to prevent overwhelming the CPU
     delay(10);
+    Serial.println("Stuck Here!");
   }
 
   // Stop the motor
@@ -3033,7 +3216,6 @@ void setup()
   Serial.println(mVersion);
   update_sensor = lasttime_speed = lasttime_angle = millis();
   blink_time = millis();
-  calculate = true;
 }
 
 /**
@@ -3059,28 +3241,9 @@ void loop()
     digitalWrite(13,blink_flag);
   }
 
-  updatePetersSensors();
-
   if(megapi_mode == BLUETOOTH_MODE)
   {
-    // read_serial();
-    if(ultrasonic_sensor.distanceCm() < 20)
-    {
-      Stop();
-    }
-    else
-    {
-      // Serial.println("Turning Left!\r\n");
-      // TurnLeft90();
-      // delay(5000);
-      // Serial.println("Turning Right!\r\n");
-      // TurnRight90();
-      if (calculate){
-        calculate = false;
-        moveDistance(30);
-      }
-      else Stop();
-    }
+    read_serial();
   }
   else if(megapi_mode == AUTOMATIC_OBSTACLE_AVOIDANCE_MODE)
   { 
@@ -3095,11 +3258,5 @@ void loop()
   {
     line_model();
   }
-
-  //Example on how to use the ultrasonic sensor
-  // Serial.print("Distance : ");
-  // Serial.print(ultrasonic_sensor.distanceCm() );
-  // Serial.println(" cm");
-  // delay(100); /* the minimal measure interval is 100 milliseconds */
 }
 /* End our Firmware Code */
