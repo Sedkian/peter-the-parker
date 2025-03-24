@@ -27,8 +27,6 @@ MeGasSensor GasSensor;
 MeTouchSensor touchSensor;
 Me4Button buttonSensor;
 MeEncoderOnBoard* encoders[4] = {new MeEncoderOnBoard(SLOT1), new MeEncoderOnBoard(SLOT2), new MeEncoderOnBoard(SLOT3), new MeEncoderOnBoard(SLOT4)};
-MeEncoderOnBoard *frontLeftEncoder = encoders[0];
-MeEncoderOnBoard *rearRightEncoder = encoders[1];
 MeLineFollower line(PORT_8);
 MeColorSensor *colorsensor  = NULL;
 
@@ -75,8 +73,6 @@ int16_t len = 52;
 int16_t servo_pins[12]={0,0,0,0,0,0,0,0,0,0,0,0};
 //Just for MegaPi
 int16_t moveSpeed = 200;
-int16_t frontLeftEncoderSpeed = -0.9 * moveSpeed;
-int16_t rearRightEncoderSpeed = moveSpeed;
 int16_t turnSpeed = 180;
 int16_t minSpeed = 45;
 int16_t factor = 23;
@@ -130,22 +126,12 @@ double  angle_speed = 0.0;
 float angleServo = 90.0;
 float dt;
 
-const float wheelDiameter = 6.4; //cm
-const float wheelRadius = wheelDiameter / 2;
-const float wheelCircumference = wheelDiameter * PI;
-const int pulsesPerRevolution = 374; // also equals 360 degrees
-const float distancePerPulse = wheelCircumference / pulsesPerRevolution;
-
 long lasttime_angle = 0;
 long lasttime_speed = 0;
 long update_sensor = 0;
 long blink_time = 0;
 long last_Pulse_pos_encoder1 = 0;
 long last_Pulse_pos_encoder2 = 0;
-
-uint8_t bluetoothHeadA = 0xff;
-uint8_t bluetoothHeadB = 0x55;
-uint8_t bluetoothEnd = 0xff;
 
 boolean isStart = false;
 boolean isAvailable = false;
@@ -154,8 +140,6 @@ boolean rightflag;
 boolean start_flag = false;
 boolean move_flag = false;
 boolean blink_flag = false;
-
-bool calculate = true;
 
 String mVersion = "0e.01.018";
 //////////////////////////////////////////////////////////////////////////////////////
@@ -240,6 +224,7 @@ float RELAX_ANGLE = -1;                    //Natural balance angle,should be adj
 #define RESET 4
 #define START 5
 
+/* Start of our Firmware Variables*/
 #define TRANSLATION_CMD 0
 #define ROTATION_CMD 1
 
@@ -248,6 +233,27 @@ float RELAX_ANGLE = -1;                    //Natural balance angle,should be adj
 #define ROTATION_BY_180_DEGREES 2
 
 #define MOVEMENT_BLOCK_SIZE_CM 30 // in cm
+
+MeEncoderOnBoard *frontLeftEncoder = encoders[0];
+MeEncoderOnBoard *rearRightEncoder = encoders[1];
+
+int16_t frontLeftEncoderSpeed = -0.9 * moveSpeed;
+int16_t rearRightEncoderSpeed = moveSpeed;
+
+uint8_t bluetoothHeadA = 0xff;
+uint8_t bluetoothHeadB = 0x55;
+uint8_t bluetoothEnd = 0xff;
+
+const float wheelDiameter = 6.4; //cm
+const float wheelRadius = wheelDiameter / 2;
+const float wheelCircumference = wheelDiameter * PI;
+const int pulsesPerRevolution = 374; // also equals 360 degrees
+const float distancePerPulse = wheelCircumference / pulsesPerRevolution;
+
+uint8_t buf[64];
+uint8_t bufindex;
+unsigned long print_time = 0;
+/* End of our Firmware Variables*/
 
 typedef struct
 {
@@ -2616,10 +2622,41 @@ void line_model(void)
   }
 }
 
+/* Start our Firmware Code */
+/**
+ * \par Function
+ *   translateNBlocks
+ * \par Description
+ *  The function used to move the car kit forward n blocks
+ *  where each block is of MOVEMENT_BLOCK_SIZE_CM cm.
+ * \param[in]
+ *   nBlocks - The number of blocks to move
+ * \par Output
+ *  None
+ * \return
+ *  None
+ * \par Others
+ * None
+ */
 void translateNBlocks(uint8_t nBlocks){
   moveDistance(nBlocks * MOVEMENT_BLOCK_SIZE_CM);
 }
 
+/**
+ * \par Function
+ *    rotateByCase
+ * \par Description
+ *    The function used to rotate the car kit by a certain number of degrees
+ *    depending on the received case number.
+ * \param[in]
+ *    caseNum - The number of degrees to rotate by
+ * \par Output
+ *    None
+ * \return
+ *    None
+ * \par Others
+ *    None
+ */
 void rotateByCase(uint8_t caseNum){
   switch(caseNum){
     case ROTATION_BY_90_DEGREES_COUNTERCLOCKWISE:
@@ -2637,6 +2674,20 @@ void rotateByCase(uint8_t caseNum){
   }
 }
 
+/**
+ * \par Function
+ *    executePath
+ * \par Description
+ *    The function used to execute the path commands received from the phone app.
+ * \param[in]
+ *    None
+ * \par Output
+ *    None
+ * \return
+ *    None
+ * \par Others
+ *    None
+ */
 void executePath(void){
   isStart = false;
   uint8_t dataLen = readBuffer(2);
@@ -2682,10 +2733,6 @@ void executePath(void){
     delay(500);
   }
 }
-
-uint8_t buf[64];
-uint8_t bufindex;
-unsigned long print_time = 0;
 
 /**
  * \par Function
@@ -2755,6 +2802,20 @@ boolean read_serial(void)
   return result;
 }
 
+/**
+ * \par Function
+ *    updatePetersSensors
+ * \par Description
+ *   The function used to update the sensors on the car kit and loop the encoders.
+ * \param[in]
+ *   None
+ * \par Output
+ *  None
+ * \return
+ * None
+ * \par Others
+ * None
+ */
 void updatePetersSensors(void){
   frontLeftEncoder->loop();
   rearRightEncoder->loop();
@@ -2772,7 +2833,6 @@ void moveRearRightEncoderForward(void){
   rearRightEncoder->setMotorPwm(rearRightEncoderSpeed);
 }
 
-/* Start our Firmware Code */
 /**
  * \par Function
  *    Forward
@@ -2889,6 +2949,20 @@ double getAverageOfNZAngles(int N)
   return angle / N;
 }
 
+/**
+ * \par Function
+ *    turnByDegrees
+ * \par Description
+ *  This function use is to control the car kit to turn a certain number of degrees.
+ * \param[in]
+ *  degrees - The number of degrees to turn
+ * \par Output
+ * None
+ * \return
+ * None
+ * \par Others
+ * None
+ */
 void turnByDegrees(double degrees){
   double angle = getAverageOfNZAngles(5);
   double targetAngle = getAnglePlusDegrees(angle, degrees);
@@ -3010,6 +3084,21 @@ void printEncoderValues(MeEncoderOnBoard *encoder, String name){
   Serial.println("");
 }  
 
+/**
+ * \par Function
+ *    isPathClear
+ * \par Description
+ *    The function used to check if the path is clear by checking
+ *    if there is a clearance of 20 cm using the ultrasonic sensor.
+ * \param[in]
+ *    None
+ * \par Output
+ *    None
+ * \return
+ *    Is the path clear
+ * \par Others
+ *    None
+ */
 bool isPathClear(){
   return ultrasonic_sensor.distanceCm() > 20;
 }
@@ -3127,7 +3216,6 @@ void setup()
   Serial.println(mVersion);
   update_sensor = lasttime_speed = lasttime_angle = millis();
   blink_time = millis();
-  calculate = true;
 }
 
 /**
@@ -3170,11 +3258,5 @@ void loop()
   {
     line_model();
   }
-
-  //Example on how to use the ultrasonic sensor
-  // Serial.print("Distance : ");
-  // Serial.print(ultrasonic_sensor.distanceCm() );
-  // Serial.println(" cm");
-  // delay(100); /* the minimal measure interval is 100 milliseconds */
 }
 /* End our Firmware Code */
