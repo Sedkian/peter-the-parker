@@ -206,10 +206,10 @@ grid1 = [
     [1, 0, 1, 1, 0, 1],
     [1, 0, 1, 1, 0, 1],
     [1, 0, 1, 1, 0, 1],
-    [0, 0, 0, 0, 0, 1],
+    [1, 0, 0, 0, 0, 1],
 ]
-s1 = (4, 0)  #(row, column)
-e1 = (0, 5) 
+s1 = (0, 5)  #(row, column)
+e1 = (0, 1) 
 
 grid2 = [
     [1, 0, 0, 0, 0, 1],
@@ -231,26 +231,60 @@ grid3 = [
 s3 = (4,1)
 e3 = (4,5)
 
-grid4 = generate_random_grid(50,50, 1, 4)
+
+grid3 = [
+    [1, 0, 1, 1, 1, 0, 1],
+    [1, 0, 1, 0, 1, 0, 1],
+    [1, 0, 0, 0, 0, 0, 1],
+    [1, 0, 1, 0, 1, 0, 1],
+    [1, 0, 1, 1, 1, 0, 1],
+]
+#grid4 = generate_random_grid(50,50, 1, 4)
 s4 =(0,0)
 e4 = (40,40)
 grids.append([grid1, s1, e1, "east"])
-#grids.append([grid2, s2, e2, "east"])
-#grids.append([grid3, s3, e3, "north"])
+grids.append([grid2, s2, e2, "east"])
+grids.append([grid3, s3, e3, "north"])
 #grids.append([grid4, s4, e4, "east"])
 
 # Find the path
 
+# Test all of the grids and given coords
+# i=0
+# for grid, start, end, orientation in grids:
+#     print("Grid " + str(i))
+#     endpoints_open(grid, start, end)
+#     visualize_grid(grid, None, start, end)
+#     path = a_star(grid, start, end)
+#     visualize_grid(grid, path, start, end)
+#     moves = calcuate_moves(path, orientation)
+#     hex_moves = moves_to_hex(moves)
+#     print("Rotation and Translation Moves: {0}".format(moves))
+#     print("Hex Moves: {0}".format(hex_moves))
+#     i += 1
 
-i=0
+# I/O Flow ------------------------------
+i = 0 
+#Display Grids
 for grid, start, end, orientation in grids:
     print("Grid " + str(i))
-    endpoints_open(grid, start, end)
-    visualize_grid(grid, None, start, end)
-    path = a_star(grid, start, end)
-    visualize_grid(grid, path, start, end)
-    moves = calcuate_moves(path, orientation)
-    hex_moves = moves_to_hex(moves)
-    print("Rotation and Translation Moves: {0}".format(moves))
-    print("Hex Moves: {0}".format(hex_moves))
+    visualize_grid(grid, None, None, None)
     i += 1
+
+grid_choice = grids[int(input("Select Grid: "))][0]
+visualize_grid(grid_choice)
+print("Top left is (0,0) in row column format.") 
+start = tuple(map(int, input("Choose starting point \"r c\": ").split()))
+end = tuple(map(int,input("Choose ending point \"r c\": ").split()))
+orientation = input("Starting orientation (north, south, east, west): ")
+print("Printing grid with start and end points.")
+endpoints_open(grid_choice, start, end)
+visualize_grid(grid_choice, None, start, end)
+path = a_star(grid_choice, start, end)
+visualize_grid(grid_choice, path, start, end)
+moves = calcuate_moves(path, orientation)
+hex_moves = moves_to_hex(moves)
+print("Rotation and Translation Moves: {0}".format(moves))
+print("Hex Moves: {0}".format(hex_moves))
+
+
